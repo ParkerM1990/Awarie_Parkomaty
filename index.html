@@ -308,6 +308,10 @@ select,input{
 <!-- ✅ JS zostaje praktycznie bez zmian -->
 <script>
 
+function makeKey(id, structure) {
+  return `${id}|${(structure || "").trim().toUpperCase()}`;
+}
+
 function toggleFilters(){
   const panel = document.getElementById("mapFilterPanel");
   panel.classList.toggle("open");
@@ -347,14 +351,22 @@ async function loadParkomaty(){
   const nodeSet=new Set();
 
   rows.forEach(r=>{
-    const id=r[0]?.trim();
-    const lng=parseFloat(r[2]);
-    const lat=parseFloat(r[3]);
-    const node=r[4];
-
-    if(!id || isNaN(lat) || isNaN(lng)) return;
-
-    allParkomaty[id]={lat,lng,location:r[1],node};
+    
+const id = r[0]?.trim(); 
+const lng = parseFloat(r[2]);
+const lat = parseFloat(r[3]);
+const structure = r[5]?.trim();
+const node = r[4];
+if(!id || !structure || isNaN(lat) || isNaN(lng)) return;
+const key = makeKey(id, structure);
+allParkomaty[key] = {
+  id,
+  structure,
+  lat,
+  lng,
+  location: r[1],
+  node
+};
     nodeSet.add(node);
   });
 
@@ -372,24 +384,20 @@ async function loadActive(){
 
  
 rows.forEach(r=>{
-  const id=r[0]?.trim();
-  if(!id) return;
+  const id = r[0]?.trim();
+const structure = r[1]?.trim();
 
-  // ✅ filtr – tylko parkomaty z listy
-  if(!allParkomaty[id]) return;
+const key = makeKey(id, structure);
+if (!allParkomaty[key]) return;
 
+if (!activeEvents[key]) activeEvents[key] = [];
 
-    if(!activeEvents[id]) activeEvents[id]=[];
-
-    
-activeEvents[id].push({
-  name:r[5],
-  code:r[4],   // ✅ DODANE (eventCode)
-  hardware:r[7]||"",
-  date:r[3]
+activeEvents[key].push({
+  name: r[5],
+  code: r[4],
+  hardware: r[7] || "",
+  date: r[3]
 });
-
-
     count++;
   });
 
@@ -417,15 +425,17 @@ function renderMarkers(){
   let points=[];
 
  
-Object.keys(activeEvents).forEach(id=>{
-  const p=allParkomaty[id];
+
+Object.keys(activeEvents).forEach(key => {
+
+  const p = allParkomaty[key];
   if(!p) return;
 
   if(node && p.node!==node) return;
 
-  let popup=`<b>Parkomat ${id}</b><br>${p.location}<br><br>`;
+  let popup = `<b>Parkomat ${p.id}</b><br>${p.location}<br><br>`;
 
-  activeEvents[id].forEach(e=>{
+  activeEvents[key].forEach(e=>{
     popup+=`• ${e.name}<br><small>${e.date}</small><br>`;
   });
 
@@ -439,7 +449,7 @@ Object.keys(activeEvents).forEach(id=>{
   `;
 
   // ✅ 👉 DODAJ TO TU
-  const codes = activeEvents[id].map(e => (e.code ? String(e.code).trim() : ""));
+  const codes = activeEvents[key].map(e => (e.code ? String(e.code).trim() : ""));
   const hasCritical = codes.some(code => RED_CODES.includes(code));
 
   // ✅ marker
@@ -460,7 +470,7 @@ Object.keys(activeEvents).forEach(id=>{
         color:white;
         font-weight:bold;
       ">
-        ${activeEvents[id].length}
+        ${activeEvents[key].length}
       </div>
     `
   });
@@ -527,11 +537,9 @@ function renderActiveList(){
 
   let html="";
 
-  Object.keys(activeEvents).forEach(id=>{
-    const p=allParkomaty[id];
-    if(!p) return;
-
-    const filtered=activeEvents[id].filter(e=>{
+  Object.keys(activeEvents).forEach(key => {  const p = allParkomaty[key];  if(!p) return;
+    const id = p.id;
+    const filtered=activeEvents[key].filter(e=>{
       const d=new Date(e.date);
 
       if(from && d<new Date(from)) return false;
@@ -572,7 +580,11 @@ historyEvents.forEach(r=>{
   if(!r[0]) return;
 
   // ✅ NOWE – filtr po liście parkomatów
-  if(!allParkomaty[r[0]]) return;
+  
+const key = makeKey(r[0], r[1]); // ✅ r[1] = structure
+
+if (!allParkomaty[key]) return;
+
 
   const d=new Date(r[3]);
 
