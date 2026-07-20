@@ -2,8 +2,6 @@ import { useState } from "react";
 import { supabase } from "../services/supabase";
 import { useAuth } from "../context/AuthContext";
 
-type Props = {};
-
 export default function Login() {
     const { reloadUser } = useAuth();
   const [email, setEmail] = useState("");
