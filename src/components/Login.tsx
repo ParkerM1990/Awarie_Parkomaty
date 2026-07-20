@@ -2,9 +2,7 @@ import { useState } from "react";
 import { supabase } from "../services/supabase";
 import { useAuth } from "../context/AuthContext";
 
-type Props = {
-  onLogin: () => void;
-};
+type Props = {};
 
 export default function Login({ onLogin }: Props) {
     const { reloadUser } = useAuth();

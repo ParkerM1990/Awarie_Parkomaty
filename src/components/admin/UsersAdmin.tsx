@@ -560,23 +560,6 @@ if (currentUser?.role !== "admin") {
               🔑 Hasło
             </button>
 
-            <button
-              onClick={() =>
-                deleteUser(u.id)
-              }
-              style={{
-                background: "#dc2626",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              🗑️ Usuń
-            </button>
-
           </div>
         </div>
       ))}
