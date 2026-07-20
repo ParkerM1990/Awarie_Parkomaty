@@ -1,0 +1,263 @@
+body {  margin: 0;  font-family: Arial, sans-serif;  background: #020617;  color: white;}
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  background: linear-gradient(
+    135deg,
+    #0f172a,
+    #1e293b,
+    #2563eb
+  );
+}
+
+.app-card {
+  background: #111827;
+
+  border: 1px solid #334155;
+
+  border-radius: 16px;
+
+  padding: 16px;
+
+  box-shadow:
+    0 4px 20px
+    rgba(0, 0, 0, 0.25);
+
+  transition: all 0.2s ease;
+}
+
+.app-card:hover {
+  border-color: #475569;
+
+  box-shadow:
+    0 8px 30px
+    rgba(0, 0, 0, 0.35);
+}
+
+.app-panel {
+  background: #0f172a;
+
+  border: 1px solid #334155;
+
+  border-radius: 16px;
+
+  padding: 16px;
+
+  margin-bottom: 20px;
+}
+
+.login-card {
+  width: 420px;
+  max-width: 90%;
+
+  padding: 40px;
+
+  border-radius: 28px;
+
+  background: rgba(
+    255,
+    255,
+    255,
+    0.08
+  );
+
+  backdrop-filter: blur(18px);
+
+  border: 1px solid
+    rgba(255,255,255,.15);
+
+  box-shadow:
+    0 20px 60px
+    rgba(0,0,0,.35);
+
+  text-align: center;
+}
+
+.logo-icon {
+  width: 80px;
+  height: 80px;
+
+  margin: auto;
+
+  border-radius: 20px;
+
+  background: #2563eb;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  font-size: 42px;
+
+  box-shadow:
+    0 10px 30px
+    rgba(37,99,235,.4);
+}
+
+.login-logo h1 {
+  margin-top: 20px;
+  font-size: 30px;
+}
+
+.login-logo p {
+  color: #cbd5e1;
+}
+
+.login-form {
+  margin-top: 30px;
+}
+
+.login-form input {
+  width: 100%;
+
+  padding: 15px;
+
+  margin-bottom: 15px;
+
+  border: none;
+
+  border-radius: 14px;
+
+  background:
+    rgba(255,255,255,.1);
+
+  color: white;
+
+  box-sizing: border-box;
+}
+
+.login-form button {
+  width: 100%;
+
+  padding: 15px;
+
+  border: none;
+
+  border-radius: 14px;
+
+  cursor: pointer;
+
+  color: white;
+
+  font-weight: 600;
+
+  background:
+    linear-gradient(
+      135deg,
+      #2563eb,
+      #60a5fa
+    );
+}
+
+.login-footer {
+  margin-top: 20px;
+  color: #94a3b8;
+}
+
+.author strong {
+  color: white;
+}
+.sidebar {
+  position: fixed;
+
+  top: 60px;
+  left: 0;
+  bottom: 0;
+
+  width: 72px;
+
+  background: #020617;
+
+  border-right: 1px solid #1f2937;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding-top: 12px;
+
+  z-index: 2500;
+}
+
+.sidebar button:hover {
+  background: #111827 !important;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+
+    height: 50px;
+
+    top: auto;
+    bottom: 0;
+
+    flex-direction: row;
+
+    justify-content: space-around;
+
+    border-right: none;
+    border-top: 1px solid #1f2937;
+
+    padding-top: 0;
+  }
+}
+.app-panel select,
+.app-panel input {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  background: #111827;
+
+  color: #f8fafc;
+
+  border: 1px solid #334155;
+
+  border-radius: 10px;
+
+  padding: 10px;
+}
+
+.app-panel select:focus,
+.app-panel input:focus {
+  outline: none;
+
+  border-color: #2563eb;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(37, 99, 235, 0.25);
+}
+
+.app-panel option {
+  background: #111827;
+  color: #f8fafc;
+}
+
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+
+.react-datepicker__input-container input {
+  width: 100%;
+  box-sizing: border-box;
+
+  background: #111827;
+  color: white;
+
+  border: 1px solid #334155;
+  border-radius: 10px;
+
+  padding: 10px;
+}
