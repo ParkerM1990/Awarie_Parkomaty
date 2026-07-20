@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 
 type Props = {};
 
-export default function Login({ onLogin }: Props) {
+export default function Login() {
     const { reloadUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,8 +30,6 @@ export default function Login({ onLogin }: Props) {
   await reloadUser();
 
   setLoading(false);
-
-  onLogin();
 }
 
   return (
