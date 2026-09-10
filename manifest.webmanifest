@@ -1,0 +1,9 @@
+{
+  "name":"CPG Inkasacja",
+  "short_name":"CPG Inkasacja",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#f3f7fb",
+  "theme_color":"#073b73",
+  "description":"Mobilny prototyp planowania i raportowania inkasacji parkomatów."
+}

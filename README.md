@@ -1,32 +1,38 @@
-# React + TypeScript + Vite
+# CPG Inkasacja v3
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Mobilny prototyp PWA do obsługi inkasacji parkomatów bez płatnych API i bez kluczy Google.
 
-Currently, two official plugins are available:
+## Nowości v3
+- raport końcowy w Excelu (`.xlsx`) zamiast PDF,
+- osobna kolumna „Szacowana gotówka” i „Wybrana gotówka”,
+- automatyczna kolumna różnicy między kwotą szacowaną i faktyczną,
+- suma faktycznie wybranej gotówki na pulpicie i w podsumowaniu,
+- skanowanie kodu QR aparatem telefonu przy każdym parkomacie,
+- możliwość ręcznego wpisania kwoty, jeżeli QR nie może zostać zeskanowany,
+- oznaczenie w raporcie, czy kwota pochodziła z QR czy z wpisu ręcznego,
+- opcjonalna kontrola numeru urządzenia, jeśli ID jest zapisane w kodzie QR,
+- numer plomby pozostaje obowiązkowy dla urządzenia oznaczonego „Opróżniono”,
+- zachowana obsługa urządzeń pominiętych, notatek, OneDrive/JSON, GPS i nawigacji bez kluczy API.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Obsługiwane formaty QR
+Najprostszy kod może zawierać samą kwotę, np. `2840,50`. Obsługiwane są również m.in.:
+- `KWOTA=2840,50`
+- `PLN: 2840.50`
+- JSON: `{"amount":2840.50,"id":"RA-101"}`
 
-## React Compiler
+Jeśli QR zawiera `id`, aplikacja porównuje je z numerem aktualnie otwartego urządzenia i ostrzega przy niezgodności.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Raport Excel
+Plik zawiera arkusze:
+1. `Podsumowanie` — czas trasy, liczba urządzeń, kwota szacowana i faktycznie wybrana.
+2. `Urządzenia` — numer, lokalizacja, GPS, kwoty, różnica, zapełnienie, status, plomba, powód pominięcia, uwagi, czas obsługi i źródło kwoty.
 
-## Expanding the Oxlint configuration
+## Uruchomienie
+Do testu interfejsu na komputerze można otworzyć `index.html`. Do skanowania aparatem i GPS aplikacja powinna być uruchomiona przez HTTPS, np. na GitHub Pages. Po pierwszym użyciu Safari/Chrome poprosi o zgodę na aparat i lokalizację.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## OneDrive
+Dane robocze są przechowywane lokalnie w przeglądarce. Eksport sesji JSON i raport Excel można zapisać do OneDrive przez systemowy dialog plików.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Raport Excel - uproszczony układ
+Raport koncowy zawiera jeden arkusz i tylko 5 kolumn: Lp., Numer parkomatu, Adres parkomatu, Numer plomby, Kwota fizycznie wybranej gotowki [PLN]. Urzadzenia niewykonane pozostaja na liscie z pustym numerem plomby i pusta kwota.
