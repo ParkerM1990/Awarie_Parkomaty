@@ -68,18 +68,75 @@ function optimizeLocal(items,start){
   return route;
 }
 
-$('buildRouteBtn').addEventListener('click',()=>{
+function matrixRouteCost(order,matrix){
+  let total=0,prev=0;
+  for(const idx of order){
+    const leg=matrix?.[prev]?.[idx];
+    if(!Number.isFinite(leg))return Infinity;
+    total+=leg; prev=idx;
+  }
+  return total;
+}
+function optimizeMatrixOrder(matrix,count){
+  const left=Array.from({length:count},(_,i)=>i+1), ordered=[];
+  let cur=0;
+  while(left.length){
+    let bestPos=0,best=Infinity;
+    left.forEach((idx,pos)=>{const v=matrix?.[cur]?.[idx]; if(Number.isFinite(v)&&v<best){best=v;bestPos=pos}});
+    const next=left.splice(bestPos,1)[0]; ordered.push(next); cur=next;
+  }
+  if(ordered.length<4)return ordered;
+  let bestOrder=ordered,bestCost=matrixRouteCost(ordered,matrix),improved=true,passes=0;
+  while(improved&&passes<5){
+    improved=false; passes++;
+    for(let i=0;i<bestOrder.length-1;i++){
+      for(let k=i+1;k<bestOrder.length;k++){
+        const candidate=[...bestOrder.slice(0,i),...bestOrder.slice(i,k+1).reverse(),...bestOrder.slice(k+1)];
+        const cost=matrixRouteCost(candidate,matrix);
+        if(cost+1<bestCost){bestOrder=candidate;bestCost=cost;improved=true}
+      }
+    }
+  }
+  return bestOrder;
+}
+async function optimizeByRoadTime(items,start){
+  const valid=items.filter(canNavigate), invalid=items.filter(x=>!canNavigate(x));
+  if(!canNavigate(start)||valid.length<2)return {route:optimizeLocal(items,start),mode:'gps'};
+  const points=[start,...valid];
+  const coords=points.map(p=>`${Number(p.lng).toFixed(6)},${Number(p.lat).toFixed(6)}`).join(';');
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),15000);
+  try{
+    const url=`https://router.project-osrm.org/table/v1/driving/${coords}?annotations=duration`;
+    const response=await fetch(url,{headers:{'Accept':'application/json'},signal:controller.signal});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    if(data.code!=='Ok'||!Array.isArray(data.durations))throw new Error(data.message||'Brak macierzy czasów przejazdu');
+    const order=optimizeMatrixOrder(data.durations,valid.length);
+    return {route:[...order.map(i=>valid[i-1]),...invalid],mode:'roads'};
+  }catch(err){
+    console.warn('Optymalizacja drogowa niedostępna, używam GPS:',err);
+    return {route:optimizeLocal(items,start),mode:'gps'};
+  }finally{clearTimeout(timer)}
+}
+
+$('buildRouteBtn').addEventListener('click',async()=>{
  if(!state.sourceRows.length){alert('Najpierw wczytaj plik lub dane przykładowe.');return}
+ const btn=$('buildRouteBtn'),buildStatus=$('routeBuildStatus');
  const count=Math.max(1,Math.min(40,num($('deviceCount').value)||35));
  state.start={name:$('startName').value||'Punkt startowy',lat:num($('startLat').value),lng:num($('startLng').value)};
  let ranked=[...state.sourceRows].sort((a,b)=>{
    const cw=num($('cashWeight')?.value)||1, fw=num($('fillWeight')?.value)||20;
    const sa=(a.cash*cw)+(($('sortFill').checked?a.fill*fw:0));
    const sb=(b.cash*cw)+(($('sortFill').checked?b.fill*fw:0)); return sb-sa;
- }).slice(0,count).map(x=>({...x,status:'pending',seal:'',reason:'',notes:'',updatedAt:null,priority:0,collectedCash:null,qrRaw:'',qrScannedAt:null}));
- state.route=optimizeLocal(ranked,state.start);
- state.routeMeta={startedAt:new Date().toISOString(),finishedAt:null}; state.history=[];
- saveState(); renderRoute(); showView('routeView');
+ }).slice(0,count).map((x,i)=>({...x,status:'pending',seal:'',reason:'',notes:'',updatedAt:null,priority:count-i,collectedCash:null,qrRaw:'',qrScannedAt:null}));
+ try{
+   btn.disabled=true; btn.textContent='Optymalizuję trasę po drogach…'; if(buildStatus)buildStatus.textContent='Pobieram czasy przejazdu po ulicach i układam najlepszą kolejność urządzeń…';
+   const optimized=await optimizeByRoadTime(ranked,state.start);
+   state.route=optimized.route;
+   state.routeMeta={startedAt:new Date().toISOString(),finishedAt:null,optimizationMode:optimized.mode}; state.history=[];
+   if(buildStatus)buildStatus.textContent=optimized.mode==='roads'?'Kolejność została zoptymalizowana według czasu przejazdu po drogach.':'Serwer drogowy był niedostępny — użyto awaryjnej optymalizacji GPS.';
+   saveState(); renderRoute(); showView('routeView');
+ }finally{btn.disabled=false;btn.textContent='Wyznacz trasę'}
 });
 
 function saveState(){localStorage.setItem('cpg-inkasacja-state',JSON.stringify({route:state.route,start:state.start,routeMeta:state.routeMeta,history:state.history}))}
@@ -135,21 +192,23 @@ function getCurrentPosition(){
     );
   });
 }
-function reoptimizePendingFrom(position){
+async function reoptimizePendingFrom(position){
   const completed=state.route.filter(x=>x.status!=='pending');
   const pending=state.route.filter(x=>x.status==='pending');
-  if(!pending.length)return;
-  const reordered=optimizeLocal(pending,position);
-  state.route=[...completed,...reordered];
-  state.currentPosition=position; renderRoute(); renderMap();
+  if(!pending.length)return 'none';
+  const optimized=await optimizeByRoadTime(pending,position);
+  state.route=[...completed,...optimized.route];
+  state.currentPosition=position; state.routeMeta.optimizationMode=optimized.mode; renderRoute(); renderMap();
+  return optimized.mode;
 }
 async function reoptimizeFromGps(){
   const btn=$('reoptimizeBtn'), status=$('gpsStatus');
   try{
     btn.disabled=true; status.textContent='Pobieram bieżącą pozycję…';
     const pos=await getCurrentPosition();
-    reoptimizePendingFrom(pos);
-    status.textContent=`Pozostała trasa przeliczona od bieżącej pozycji (dokładność ok. ${Math.round(pos.accuracy||0)} m).`;
+    status.textContent='Przeliczam pozostałe punkty według czasu przejazdu po drogach…';
+    const mode=await reoptimizePendingFrom(pos);
+    status.textContent=mode==='roads'?`Pozostała trasa zoptymalizowana po drogach od bieżącej pozycji (dokładność GPS ok. ${Math.round(pos.accuracy||0)} m).`:`Nie udało się pobrać macierzy drogowej — pozostała trasa została awaryjnie przeliczona wg GPS.`;
   }catch(e){status.textContent='Nie udało się pobrać pozycji: '+e.message}
   finally{btn.disabled=false}
 }
@@ -169,14 +228,53 @@ function openRemainingRoute(){
   window.open(url,'_blank','noopener,noreferrer');
 }
 
+let roadRouteRequestId=0;
+function formatDriveTime(seconds){
+  const mins=Math.max(0,Math.round((Number(seconds)||0)/60));
+  if(mins<60)return `${mins} min`;
+  const h=Math.floor(mins/60),m=mins%60;
+  return m?`${h} godz. ${m} min`:`${h} godz.`;
+}
+function setRoadRouteStatus(text,kind=''){
+  const el=$('roadRouteStatus'); if(!el)return;
+  el.textContent=text; el.className=`road-route-status${kind?' '+kind:''}`;
+}
+async function drawRoadRoute(pts){
+  const requestId=++roadRouteRequestId;
+  if(pts.length<2)return;
+  setRoadRouteStatus('Wyznaczam przebieg trasy po ulicach…','loading');
+  try{
+    const coords=pts.map(p=>`${Number(p[1]).toFixed(6)},${Number(p[0]).toFixed(6)}`).join(';');
+    const url=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
+    const response=await fetch(url,{headers:{'Accept':'application/json'}});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    if(requestId!==roadRouteRequestId)return;
+    if(data.code!=='Ok'||!data.routes?.length)throw new Error(data.message||'Brak trasy drogowej');
+    const route=data.routes[0];
+    const roadPts=route.geometry.coordinates.map(([lng,lat])=>[lat,lng]);
+    if(state.routeLine)state.map.removeLayer(state.routeLine);
+    state.routeLine=L.polyline(roadPts,{weight:5,opacity:.85}).addTo(state.map);
+    state.map.fitBounds(state.routeLine.getBounds(),{padding:[25,25]});
+    const km=(Number(route.distance)||0)/1000;
+    setRoadRouteStatus(`${state.routeMeta?.optimizationMode==='roads'?'Kolejność zoptymalizowana wg czasu przejazdu po drogach':'Kolejność awaryjnie wg GPS'} • Trasa po ulicach: ${km.toLocaleString('pl-PL',{maximumFractionDigits:1})} km • orientacyjny czas jazdy ${formatDriveTime(route.duration)}.`, 'ok');
+  }catch(err){
+    if(requestId!==roadRouteRequestId)return;
+    setRoadRouteStatus('Nie udało się chwilowo pobrać przebiegu po drogach. Pokazuję awaryjnie kolejność punktów linią prostą.', 'warning');
+  }
+}
 function renderMap(){
  if(!state.route.length)return;
  if(!state.map){state.map=L.map('map',{zoomControl:false}); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(state.map); L.control.zoom({position:'bottomright'}).addTo(state.map)}
  state.markers.forEach(m=>state.map.removeLayer(m)); state.markers=[];
- const pts=[]; if(state.start.lat&&state.start.lng){pts.push([state.start.lat,state.start.lng]);state.markers.push(L.marker([state.start.lat,state.start.lng]).addTo(state.map).bindPopup(state.start.name))}
- state.route.forEach((x,i)=>{if(x.lat&&x.lng){pts.push([x.lat,x.lng]); const m=L.marker([x.lat,x.lng]).addTo(state.map).bindPopup(`${i+1}. ${escapeHtml(x.id)}<br>${escapeHtml(x.location)}`);state.markers.push(m)}});
- if(state.routeLine) state.map.removeLayer(state.routeLine); if(pts.length>1)state.routeLine=L.polyline(pts,{weight:4}).addTo(state.map); if(pts.length)state.map.fitBounds(pts,{padding:[25,25]});
+ const pts=[];
+ if(canNavigate(state.start)){pts.push([state.start.lat,state.start.lng]);state.markers.push(L.marker([state.start.lat,state.start.lng]).addTo(state.map).bindPopup(escapeHtml(state.start.name)))}
+ state.route.forEach((x,i)=>{if(canNavigate(x)){pts.push([x.lat,x.lng]); const m=L.marker([x.lat,x.lng]).addTo(state.map).bindPopup(`${i+1}. ${escapeHtml(x.id)}<br>${escapeHtml(x.location)}`);state.markers.push(m)}});
+ if(state.routeLine)state.map.removeLayer(state.routeLine);
+ if(pts.length>1)state.routeLine=L.polyline(pts,{weight:3,opacity:.35,dashArray:'7 7'}).addTo(state.map);
+ if(pts.length)state.map.fitBounds(pts,{padding:[25,25]});
  setTimeout(()=>state.map.invalidateSize(),100);
+ drawRoadRoute(pts);
 }
 
 function openDevice(i){state.currentIndex=i; const x=state.route[i]; $('deviceIndex').textContent=`URZĄDZENIE ${i+1} Z ${state.route.length}`; $('deviceId').textContent=x.id; $('deviceLocation').textContent=x.location; $('deviceCash').textContent=money(x.cash); $('deviceFill').textContent=`${Math.round(x.fill)}%`; $('sealNumber').value=x.seal||''; if($('collectedCash')) $('collectedCash').value=(x.collectedCash===null||x.collectedCash===undefined)?'':String(x.collectedCash).replace('.',','); $('notes').value=x.notes||''; $('skipReason').value=x.reason||'Brak możliwości dojazdu'; setChoice(x.status==='skip'?'skip':'done'); updateQrStatus(x); $('undoDeviceBtn')?.classList.toggle('hidden',!state.history.some(h=>h.index===i)); showView('deviceView')}

@@ -1,38 +1,47 @@
-# CPG Inkasacja v3
+# CPG Inkasacja v3 — optymalizacja po drogach
 
-Mobilny prototyp PWA do obsługi inkasacji parkomatów bez płatnych API i bez kluczy Google.
+Mobilny prototyp PWA do obsługi inkasacji parkomatów bez klucza Google.
 
-## Nowości v3
-- raport końcowy w Excelu (`.xlsx`) zamiast PDF,
-- osobna kolumna „Szacowana gotówka” i „Wybrana gotówka”,
-- automatyczna kolumna różnicy między kwotą szacowaną i faktyczną,
-- suma faktycznie wybranej gotówki na pulpicie i w podsumowaniu,
-- skanowanie kodu QR aparatem telefonu przy każdym parkomacie,
-- możliwość ręcznego wpisania kwoty, jeżeli QR nie może zostać zeskanowany,
-- oznaczenie w raporcie, czy kwota pochodziła z QR czy z wpisu ręcznego,
-- opcjonalna kontrola numeru urządzenia, jeśli ID jest zapisane w kodzie QR,
-- numer plomby pozostaje obowiązkowy dla urządzenia oznaczonego „Opróżniono”,
-- zachowana obsługa urządzeń pominiętych, notatek, OneDrive/JSON, GPS i nawigacji bez kluczy API.
-
-## Obsługiwane formaty QR
-Najprostszy kod może zawierać samą kwotę, np. `2840,50`. Obsługiwane są również m.in.:
-- `KWOTA=2840,50`
-- `PLN: 2840.50`
-- JSON: `{"amount":2840.50,"id":"RA-101"}`
-
-Jeśli QR zawiera `id`, aplikacja porównuje je z numerem aktualnie otwartego urządzenia i ostrzega przy niezgodności.
+## Najważniejsze funkcje
+- import Excel/CSV z listą parkomatów, adresem, GPS, gotówką i zapełnieniem,
+- wybór do 40 urządzeń według priorytetu gotówki i zapełnienia,
+- kolejność urządzeń optymalizowana według orientacyjnego czasu przejazdu po rzeczywistych drogach,
+- mapa trasy prowadzona po ulicach na danych OpenStreetMap/OSRM,
+- ponowne przeliczenie pozostałej trasy od aktualnej pozycji telefonu,
+- prowadzenie do kolejnego urządzenia w Apple Maps lub Google Maps przez zwykły link,
+- oznaczenie: opróżniono / nie można zainkasować,
+- obowiązkowy numer plomby dla opróżnionego urządzenia,
+- skanowanie QR z kwotą fizycznie wybranej gotówki albo wpis ręczny,
+- zapis postępu lokalnie i eksport/wznowienie przez plik JSON,
+- końcowy raport Excel.
 
 ## Raport Excel
-Plik zawiera arkusze:
-1. `Podsumowanie` — czas trasy, liczba urządzeń, kwota szacowana i faktycznie wybrana.
-2. `Urządzenia` — numer, lokalizacja, GPS, kwoty, różnica, zapełnienie, status, plomba, powód pominięcia, uwagi, czas obsługi i źródło kwoty.
+Raport końcowy zawiera jeden arkusz i tylko 5 kolumn:
+1. Lp.
+2. Numer parkomatu
+3. Adres parkomatu
+4. Numer plomby
+5. Kwota fizycznie wybranej gotówki [PLN]
+
+Urządzenia, których nie udało się opróżnić, pozostają na liście z pustym numerem plomby i pustą kwotą.
+
+## Optymalizacja trasy po drogach
+Przy tworzeniu trasy aplikacja wysyła współrzędne punktu startowego i wybranych parkomatów do publicznego serwera OSRM. Pobierana jest macierz orientacyjnych czasów przejazdu samochodem pomiędzy punktami. Na tej macierzy aplikacja układa kolejność urządzeń metodą najbliższego czasu przejazdu i dodatkowo poprawia ją iteracyjnie, aby skrócić całą trasę.
+
+Po kliknięciu „Przelicz od mojej pozycji” analogicznie układane są ponownie tylko pozostałe do wykonania urządzenia, od aktualnej pozycji GPS telefonu.
+
+Jeżeli publiczny serwer drogowy jest chwilowo niedostępny, aplikacja nie blokuje pracy: przechodzi automatycznie na awaryjną optymalizację według odległości GPS.
+
+Publiczny OSRM jest dobrym rozwiązaniem do pilotażu, ale nie zapewnia gwarantowanego SLA produkcyjnego. Nie uwzględnia również korków na żywo.
+
+## QR
+Obsługiwane przykłady:
+- `2840,50`
+- `KWOTA=2840,50`
+- `PLN: 2840.50`
+- `{"amount":2840.50,"id":"RA-101"}`
+
+Jeśli QR zawiera numer urządzenia, aplikacja porównuje go z aktualnie otwartym parkomatem.
 
 ## Uruchomienie
-Do testu interfejsu na komputerze można otworzyć `index.html`. Do skanowania aparatem i GPS aplikacja powinna być uruchomiona przez HTTPS, np. na GitHub Pages. Po pierwszym użyciu Safari/Chrome poprosi o zgodę na aparat i lokalizację.
-
-## OneDrive
-Dane robocze są przechowywane lokalnie w przeglądarce. Eksport sesji JSON i raport Excel można zapisać do OneDrive przez systemowy dialog plików.
-
-
-## Raport Excel - uproszczony układ
-Raport koncowy zawiera jeden arkusz i tylko 5 kolumn: Lp., Numer parkomatu, Adres parkomatu, Numer plomby, Kwota fizycznie wybranej gotowki [PLN]. Urzadzenia niewykonane pozostaja na liscie z pustym numerem plomby i pusta kwota.
+Do pełnego testu aparatu, GPS i PWA aplikacja powinna działać przez HTTPS, np. na GitHub Pages. Po pierwszym uruchomieniu telefon poprosi o zgodę na aparat i lokalizację.

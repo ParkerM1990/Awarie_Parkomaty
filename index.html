@@ -75,10 +75,11 @@
             <div><label>Waga gotówki</label><input id="cashWeight" type="number" min="0" step="0.1" value="1" /></div>
             <div><label>Waga zapełnienia</label><input id="fillWeight" type="number" min="0" step="1" value="20" /></div>
           </div>
-          <p class="hint">Kolejność jest optymalizowana lokalnie w telefonie na podstawie współrzędnych GPS. Aplikacja nie wymaga klucza Google ani płatnego API.</p>
+          <p class="hint">Kolejność urządzeń jest optymalizowana według rzeczywistego czasu przejazdu po drogach przez bezpłatny routing OpenStreetMap/OSRM. Nie jest wymagany klucz Google. Jeśli serwer drogowy będzie chwilowo niedostępny, aplikacja automatycznie użyje awaryjnej optymalizacji GPS.</p>
         </div>
 
         <button id="buildRouteBtn" class="primary full big">Wyznacz trasę</button>
+        <div id="routeBuildStatus" class="status muted"></div>
       </section>
 
       <section id="routeView" class="view">
@@ -91,6 +92,7 @@
         </div>
 
         <div id="map"></div>
+        <div id="roadRouteStatus" class="road-route-status">Trasa drogowa zostanie wyznaczona po ulicach.</div>
 
         <div id="nextStopCard" class="card next-stop-card hidden">
           <div class="next-stop-head">
@@ -110,7 +112,7 @@
         <div class="card navigation-tools">
           <div>
             <strong>Nawigacja terenowa</strong>
-            <div class="muted nav-help">Uruchom prowadzenie w mapach telefonu lub przelicz pozostałe punkty lokalnie od bieżącej pozycji. Na iPhone otworzy się Apple Maps, na pozostałych urządzeniach Google Maps — bez klucza API.</div>
+            <div class="muted nav-help">Uruchom prowadzenie w mapach telefonu lub przelicz pozostałe punkty od bieżącej pozycji. Kolejność pozostałych urządzeń zostanie ponownie zoptymalizowana według czasu przejazdu po drogach. Na iPhone otworzy się Apple Maps, na pozostałych urządzeniach Google Maps — bez klucza Google.</div>
           </div>
           <div class="nav-actions">
             <button id="reoptimizeBtn" class="secondary">Przelicz od mojej pozycji</button>
