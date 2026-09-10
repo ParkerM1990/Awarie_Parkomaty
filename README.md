@@ -4,7 +4,7 @@ Mobilny prototyp PWA do obsługi inkasacji parkomatów bez klucza Google.
 
 ## Najważniejsze funkcje
 - import Excel/CSV z listą parkomatów, adresem, GPS, gotówką i zapełnieniem,
-- wybór do 40 urządzeń według priorytetu gotówki i zapełnienia,
+- wybór do 40 urządzeń według największej szacowanej ilości gotówki,
 - kolejność urządzeń optymalizowana według orientacyjnego czasu przejazdu po rzeczywistych drogach,
 - mapa trasy prowadzona po ulicach na danych OpenStreetMap/OSRM,
 - ponowne przeliczenie pozostałej trasy od aktualnej pozycji telefonu,
@@ -49,3 +49,13 @@ Do pełnego testu aparatu, GPS i PWA aplikacja powinna działać przez HTTPS, np
 
 ## v4 – edycja listy planowanych parkomatów
 Przed rozpoczęciem trasy aplikacja pokazuje osobny ekran planu z kolumnami: Lp., ID parkomatu, lokalizacja i adres. Użytkownik może poprawić pola, zmienić kolejność pozycji, usunąć urządzenie albo dodać inne z wczytanego pliku. Dopiero po zatwierdzeniu planu aplikacja optymalizuje kolejność przejazdu po drogach.
+
+
+## Uproszczone kryterium wyboru
+Parametr „waga zapełnienia” został usunięty. Procent zapełnienia może być nadal pokazany informacyjnie, ale lista planowanych urządzeń jest wybierana wyłącznie według szacowanej ilości gotówki.
+
+
+## v5 – lista planowanych parkomatów dla konwojentów
+Na ekranie planu dodano przycisk „Pobierz listę planowanych parkomatów (Excel)”. Plik zawiera wyłącznie cztery kolumny: Lp., ID parkomatu, Lokalizacja i Adres.
+
+Po wyznaczeniu trasy na ekranie trasy dostępny jest również przycisk „Lista dla konwojentów”. Ten eksport wykorzystuje już kolejność urządzeń po optymalizacji trasy, więc liczba porządkowa odpowiada planowanej kolejności przejazdu.

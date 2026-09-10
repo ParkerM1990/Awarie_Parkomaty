@@ -128,11 +128,10 @@ function preparePlan(){
  if(!state.sourceRows.length){alert('Najpierw wczytaj plik lub dane przykładowe.');return}
  const count=Math.max(1,Math.min(40,num($('deviceCount').value)||35));
  state.start={name:$('startName').value||'Punkt startowy',lat:num($('startLat').value),lng:num($('startLng').value)};
- const cw=num($('cashWeight')?.value)||1, fw=num($('fillWeight')?.value)||20;
- state.plan=[...state.sourceRows].sort((a,b)=>{
-   const sa=(a.cash*cw)+(($('sortFill').checked?a.fill*fw:0));
-   const sb=(b.cash*cw)+(($('sortFill').checked?b.fill*fw:0)); return sb-sa;
- }).slice(0,count).map((x,i)=>cloneForPlan(x,count-i));
+ state.plan=[...state.sourceRows]
+   .sort((a,b)=>(Number(b.cash)||0)-(Number(a.cash)||0))
+   .slice(0,count)
+   .map(x=>cloneForPlan(x,0));
  renderPlan(); showView('planView');
 }
 $('buildRouteBtn').addEventListener('click',preparePlan);
@@ -167,6 +166,38 @@ function renderPlan(){
  const sel=$('planAddSelect');
  if(sel) sel.innerHTML='<option value="">Wybierz parkomat z pliku…</option>'+candidates.map(x=>`<option value="${state.sourceRows.indexOf(x)}">${escapeHtml(x.id)} — ${escapeHtml(x.address||x.location||'')}</option>`).join('');
 }
+
+async function exportPlannedMetersExcel(items, fileLabel='Plan_konwoju'){
+  if(!Array.isArray(items)||!items.length){alert('Lista planowanych parkomatów jest pusta.');return}
+  if(!window.ExcelJS){alert('Nie udało się załadować modułu Excel. Sprawdź połączenie z internetem i spróbuj ponownie.');return}
+  const wb=new ExcelJS.Workbook();
+  wb.creator='CPG Inkasacja'; wb.created=new Date();
+  const ws=wb.addWorksheet('Plan konwoju',{views:[{state:'frozen',ySplit:1,showGridLines:false}]});
+  ws.columns=[
+    {header:'Lp.',key:'lp',width:7},
+    {header:'ID parkomatu',key:'id',width:20},
+    {header:'Lokalizacja',key:'location',width:34},
+    {header:'Adres',key:'address',width:48}
+  ];
+  const header=ws.getRow(1); header.height=28;
+  header.eachCell(c=>{
+    c.font={bold:true,color:{argb:'FFFFFFFF'}};
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF073B73'}};
+    c.alignment={vertical:'middle',wrapText:true};
+  });
+  items.forEach((x,i)=>{
+    const row=ws.addRow({lp:i+1,id:x.id||'',location:x.location||'',address:x.address||x.location||''});
+    row.eachCell(c=>{c.alignment={vertical:'top',wrapText:true}});
+  });
+  ws.autoFilter={from:'A1',to:'D1'};
+  const buffer=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const date=new Date().toISOString().slice(0,10);
+  downloadBlob(blob,`CPG_${fileLabel}_${date}.xlsx`);
+}
+$('exportPlanExcelBtn')?.addEventListener('click',()=>exportPlannedMetersExcel(state.plan,'Planowane_parkomaty'));
+$('exportRoutePlanExcelBtn')?.addEventListener('click',()=>exportPlannedMetersExcel(state.route,'Plan_konwoju'));
+
 $('planBackBtn')?.addEventListener('click',()=>showView('setupView'));
 $('planAddBtn')?.addEventListener('click',()=>{
  const raw=$('planAddSelect')?.value, idx=Number(raw);
@@ -209,7 +240,7 @@ function renderRoute(){
  const nextIndex=state.route.findIndex(x=>x.status==='pending');
  const q=(state.search||'').toLowerCase();
  const visible=state.route.map((x,i)=>({x,i})).filter(({x})=>(state.filter==='all'||x.status===state.filter)&&(!q||x.id.toLowerCase().includes(q)||x.location.toLowerCase().includes(q)||(x.address||'').toLowerCase().includes(q)));
- $('deviceList').innerHTML=visible.map(({x,i})=>`<div class="device-row ${i===nextIndex?'next-pending':''}" data-i="${i}"><div class="order">${i+1}</div><div><strong>${escapeHtml(x.id)}</strong><span class="priority-pill">priorytet ${Math.round(x.priority||0)}</span><div class="sub">${escapeHtml(x.location)}${x.address&&x.address!==x.location?` • ${escapeHtml(x.address)}`:''}</div><span class="badge ${x.status==='done'?'done':x.status==='skip'?'skip':'pending'}">${x.status==='done'?'Zainkasowano':x.status==='skip'?'Nie zainkasowano':i===nextIndex?'Następny':'Do wykonania'}</span></div><div class="amount">${money(x.cash)}${x.status==='done'&&x.collectedCash!==null?`<div class="collected-value">wybrano: ${money2(x.collectedCash)}</div>`:''}<div class="sub">${Math.round(x.fill)}%</div></div></div>`).join('')||'<div class="card muted">Brak urządzeń spełniających filtr.</div>';
+ $('deviceList').innerHTML=visible.map(({x,i})=>`<div class="device-row ${i===nextIndex?'next-pending':''}" data-i="${i}"><div class="order">${i+1}</div><div><strong>${escapeHtml(x.id)}</strong><div class="sub">${escapeHtml(x.location)}${x.address&&x.address!==x.location?` • ${escapeHtml(x.address)}`:''}</div><span class="badge ${x.status==='done'?'done':x.status==='skip'?'skip':'pending'}">${x.status==='done'?'Zainkasowano':x.status==='skip'?'Nie zainkasowano':i===nextIndex?'Następny':'Do wykonania'}</span></div><div class="amount">${money(x.cash)}${x.status==='done'&&x.collectedCash!==null?`<div class="collected-value">wybrano: ${money2(x.collectedCash)}</div>`:''}<div class="sub">${Math.round(x.fill)}%</div></div></div>`).join('')||'<div class="card muted">Brak urządzeń spełniających filtr.</div>';
  document.querySelectorAll('.device-row').forEach(el=>el.addEventListener('click',()=>openDevice(Number(el.dataset.i))));
  renderNextStop();
  saveState();

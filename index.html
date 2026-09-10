@@ -59,22 +59,18 @@
           </div>
           <div>
             <label>Latitude punktu startowego</label>
-            <input id="startLat" type="number" step="0.000001" value="52.185290619347775" />
+            <input id="startLat" type="number" step="0.000001" value="51.4021" />
           </div>
           <div>
             <label>Longitude punktu startowego</label>
-            <input id="startLng" type="number" step="0.000001" value="20.966705955004045" />
+            <input id="startLng" type="number" step="0.000001" value="21.1473" />
           </div>
         </div>
 
         <div class="card">
-          <h2>2. Kryteria wyboru</h2>
-          <label class="check"><input id="sortCash" type="checkbox" checked /> Największa ilość gotówki</label>
-          <label class="check"><input id="sortFill" type="checkbox" checked /> Uwzględnij procent zapełnienia</label>
-          <div class="grid-2 compact-grid">
-            <div><label>Waga gotówki</label><input id="cashWeight" type="number" min="0" step="0.1" value="1" /></div>
-            <div><label>Waga zapełnienia</label><input id="fillWeight" type="number" min="0" step="1" value="20" /></div>
-          </div>
+          <h2>2. Kryterium wyboru</h2>
+          <p><strong>Największa ilość gotówki</strong></p>
+          <p class="hint">Aplikacja wybiera wskazaną liczbę parkomatów z najwyższą szacowaną kwotą gotówki. Procent zapełnienia pozostaje informacją pomocniczą, ale nie wpływa na wybór urządzeń.</p>
           <p class="hint">Kolejność urządzeń jest optymalizowana według rzeczywistego czasu przejazdu po drogach przez bezpłatny routing OpenStreetMap/OSRM. Nie jest wymagany klucz Google. Jeśli serwer drogowy będzie chwilowo niedostępny, aplikacja automatycznie użyje awaryjnej optymalizacji GPS.</p>
         </div>
 
@@ -100,6 +96,7 @@
         <div class="plan-table-head"><span>Lp.</span><span>ID parkomatu</span><span>Lokalizacja</span><span>Adres</span><span>Akcje</span></div>
         <div id="planList" class="plan-list"></div>
         <div class="card plan-note">Zmiany na tej liście dotyczą wyłącznie planu bieżącej trasy. Dane źródłowe w pliku Excel/CSV nie są modyfikowane.</div>
+        <button id="exportPlanExcelBtn" class="secondary full big">Pobierz listę planowanych parkomatów (Excel)</button>
         <button id="planOptimizeBtn" class="primary full big">Zatwierdź listę i wyznacz trasę</button>
         <div id="planOptimizeStatus" class="status muted"></div>
       </section>
@@ -154,7 +151,7 @@
             <strong id="routeTitle">Trasa</strong>
             <div id="routeSummary" class="muted"></div>
           </div>
-          <div class="toolbar-actions"><button id="editPlanBtn" class="secondary">Edytuj listę</button><button id="finishBtn" class="danger">Zakończ trasę</button></div>
+          <div class="toolbar-actions"><button id="exportRoutePlanExcelBtn" class="secondary">Lista dla konwojentów</button><button id="editPlanBtn" class="secondary">Edytuj listę</button><button id="finishBtn" class="danger">Zakończ trasę</button></div>
         </div>
 
         <div class="card filter-card">
