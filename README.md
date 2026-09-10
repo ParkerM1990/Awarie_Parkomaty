@@ -45,3 +45,7 @@ Jeśli QR zawiera numer urządzenia, aplikacja porównuje go z aktualnie otwarty
 
 ## Uruchomienie
 Do pełnego testu aparatu, GPS i PWA aplikacja powinna działać przez HTTPS, np. na GitHub Pages. Po pierwszym uruchomieniu telefon poprosi o zgodę na aparat i lokalizację.
+
+
+## v4 – edycja listy planowanych parkomatów
+Przed rozpoczęciem trasy aplikacja pokazuje osobny ekran planu z kolumnami: Lp., ID parkomatu, lokalizacja i adres. Użytkownik może poprawić pola, zmienić kolejność pozycji, usunąć urządzenie albo dodać inne z wczytanego pliku. Dopiero po zatwierdzeniu planu aplikacja optymalizuje kolejność przejazdu po drogach.

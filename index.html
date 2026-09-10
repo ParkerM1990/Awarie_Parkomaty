@@ -78,8 +78,30 @@
           <p class="hint">Kolejność urządzeń jest optymalizowana według rzeczywistego czasu przejazdu po drogach przez bezpłatny routing OpenStreetMap/OSRM. Nie jest wymagany klucz Google. Jeśli serwer drogowy będzie chwilowo niedostępny, aplikacja automatycznie użyje awaryjnej optymalizacji GPS.</p>
         </div>
 
-        <button id="buildRouteBtn" class="primary full big">Wyznacz trasę</button>
+        <button id="buildRouteBtn" class="primary full big">Przygotuj listę parkomatów</button>
         <div id="routeBuildStatus" class="status muted"></div>
+      </section>
+
+
+      <section id="planView" class="view">
+        <button id="planBackBtn" class="ghost back">← Powrót do ustawień</button>
+        <div class="hero">
+          <span class="eyebrow">PLAN INKASACJI</span>
+          <h1>Sprawdź i popraw listę parkomatów</h1>
+          <p>Przed wyznaczeniem trasy możesz poprawić ID, lokalizację i adres, usunąć pozycję albo dodać inne urządzenie z wczytanego pliku.</p>
+        </div>
+        <div class="card plan-summary">
+          <div><small>Liczba planowanych urządzeń</small><strong id="planCount">0</strong></div>
+          <div class="plan-add-box">
+            <select id="planAddSelect"><option value="">Wybierz parkomat z pliku…</option></select>
+            <button id="planAddBtn" class="secondary">Dodaj</button>
+          </div>
+        </div>
+        <div class="plan-table-head"><span>Lp.</span><span>ID parkomatu</span><span>Lokalizacja</span><span>Adres</span><span>Akcje</span></div>
+        <div id="planList" class="plan-list"></div>
+        <div class="card plan-note">Zmiany na tej liście dotyczą wyłącznie planu bieżącej trasy. Dane źródłowe w pliku Excel/CSV nie są modyfikowane.</div>
+        <button id="planOptimizeBtn" class="primary full big">Zatwierdź listę i wyznacz trasę</button>
+        <div id="planOptimizeStatus" class="status muted"></div>
       </section>
 
       <section id="routeView" class="view">
@@ -132,7 +154,7 @@
             <strong id="routeTitle">Trasa</strong>
             <div id="routeSummary" class="muted"></div>
           </div>
-          <button id="finishBtn" class="danger">Zakończ trasę</button>
+          <div class="toolbar-actions"><button id="editPlanBtn" class="secondary">Edytuj listę</button><button id="finishBtn" class="danger">Zakończ trasę</button></div>
         </div>
 
         <div class="card filter-card">

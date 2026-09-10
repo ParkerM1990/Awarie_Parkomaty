@@ -1,11 +1,11 @@
 const state = {
-  sourceRows: [], route: [], currentIndex: null, map: null, markers: [], lastExcelBlob: null,
+  sourceRows: [], plan: [], route: [], currentIndex: null, map: null, markers: [], lastExcelBlob: null,
   currentPosition: null, filter:'all', search:'', history:[], routeMeta:{startedAt:null,finishedAt:null},
   start: {name:'Baza CPG', lat:51.4021, lng:21.1473}
 };
 
 const $ = id => document.getElementById(id);
-const views = ['setupView','routeView','deviceView','finishView','reportView'];
+const views = ['setupView','planView','routeView','deviceView','finishView','reportView'];
 function showView(id){views.forEach(v=>$(v).classList.toggle('active',v===id)); window.scrollTo({top:0,behavior:'smooth'}); if(id==='routeView') setTimeout(renderMap,80)}
 function money(v){return new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN',maximumFractionDigits:0}).format(Number(v)||0)}
 function money2(v){return new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v)||0)}
@@ -16,9 +16,12 @@ function normalizeRow(r,i){
   let lat=num(pick(r,['Y','lat','latitude','szerokosc','szerokoscgeograficzna']));
   let lng=num(pick(r,['X','lng','lon','longitude','dlugosc','dlugoscgeograficzna']));
   if(Math.abs(lat)>90 && Math.abs(lng)<=90){const t=lat;lat=lng;lng=t}
+  const rawLocation=String(pick(r,['Lokalizacja','location','miejsce','strefa'])||'').trim();
+  const rawAddress=String(pick(r,['Adres','address','ulica'])||'').trim();
   return {
     id:String(pick(r,['ID','Nr','Numer','parkomat','nrparkomatu','urzadzenie'])||`P-${String(i+1).padStart(3,'0')}`),
-    location:String(pick(r,['Lokalizacja','Adres','address','location','ulica'])||'Brak lokalizacji'),
+    location:rawLocation||rawAddress||'Brak lokalizacji',
+    address:rawAddress||rawLocation||'Brak adresu',
     lat,lng,
     cash:num(pick(r,['Gotowka','Kwota','cash','stan gotowki','wartosc','amount'])),
     fill:num(pick(r,['Zapelnienie','Procent','fill','procent zapelnienia','poziom zapelnienia'])),
@@ -30,7 +33,8 @@ function sampleData(){
  const center=[51.4021,21.1473];
  state.sourceRows=Array.from({length:52},(_,i)=>({
    id:`RA-${String(101+i).padStart(3,'0')}`,
-   location:`ul. ${['Żeromskiego','Sienkiewicza','Traugutta','Reja','Warszawska','Struga','Malczewskiego','25 Czerwca'][i%8]} ${3+(i%28)}`,
+   location:`Strefa ${1+(i%4)}`,
+   address:`ul. ${['Żeromskiego','Sienkiewicza','Traugutta','Reja','Warszawska','Struga','Malczewskiego','25 Czerwca'][i%8]} ${3+(i%28)}`,
    lat:center[0]+((i%9)-4)*0.006+(Math.sin(i)*0.0015),
    lng:center[1]+((Math.floor(i/9))-2)*0.009+(Math.cos(i)*0.0015),
    cash:1200+((i*587)%3600), fill:48+((i*7)%50), status:'pending',seal:'',reason:'',notes:'',updatedAt:null,priority:0,collectedCash:null,qrRaw:'',qrScannedAt:null
@@ -119,29 +123,78 @@ async function optimizeByRoadTime(items,start){
   }finally{clearTimeout(timer)}
 }
 
-$('buildRouteBtn').addEventListener('click',async()=>{
+function cloneForPlan(x, priority=0){return {...x,address:x.address||x.location||'Brak adresu',location:x.location||x.address||'Brak lokalizacji',status:'pending',seal:'',reason:'',notes:'',updatedAt:null,priority,collectedCash:null,qrRaw:'',qrScannedAt:null}}
+function preparePlan(){
  if(!state.sourceRows.length){alert('Najpierw wczytaj plik lub dane przykładowe.');return}
- const btn=$('buildRouteBtn'),buildStatus=$('routeBuildStatus');
  const count=Math.max(1,Math.min(40,num($('deviceCount').value)||35));
  state.start={name:$('startName').value||'Punkt startowy',lat:num($('startLat').value),lng:num($('startLng').value)};
- let ranked=[...state.sourceRows].sort((a,b)=>{
-   const cw=num($('cashWeight')?.value)||1, fw=num($('fillWeight')?.value)||20;
+ const cw=num($('cashWeight')?.value)||1, fw=num($('fillWeight')?.value)||20;
+ state.plan=[...state.sourceRows].sort((a,b)=>{
    const sa=(a.cash*cw)+(($('sortFill').checked?a.fill*fw:0));
    const sb=(b.cash*cw)+(($('sortFill').checked?b.fill*fw:0)); return sb-sa;
- }).slice(0,count).map((x,i)=>({...x,status:'pending',seal:'',reason:'',notes:'',updatedAt:null,priority:count-i,collectedCash:null,qrRaw:'',qrScannedAt:null}));
+ }).slice(0,count).map((x,i)=>cloneForPlan(x,count-i));
+ renderPlan(); showView('planView');
+}
+$('buildRouteBtn').addEventListener('click',preparePlan);
+
+function renderPlan(){
+ const list=$('planList'); if(!list)return;
+ $('planCount').textContent=state.plan.length;
+ list.innerHTML=state.plan.map((x,i)=>`<div class="plan-row" data-i="${i}">
+   <div class="plan-lp">${i+1}</div>
+   <div class="plan-field"><label>ID parkomatu</label><input data-field="id" value="${escapeHtml(x.id)}"></div>
+   <div class="plan-field"><label>Lokalizacja</label><input data-field="location" value="${escapeHtml(x.location||'')}"></div>
+   <div class="plan-field"><label>Adres</label><input data-field="address" value="${escapeHtml(x.address||x.location||'')}"></div>
+   <div class="plan-actions">
+     <button class="plan-move" data-act="up" title="Przesuń w górę" ${i===0?'disabled':''}>↑</button>
+     <button class="plan-move" data-act="down" title="Przesuń w dół" ${i===state.plan.length-1?'disabled':''}>↓</button>
+     <button class="plan-remove" data-act="remove" title="Usuń z planu">Usuń</button>
+   </div>
+ </div>`).join('');
+ list.querySelectorAll('input[data-field]').forEach(inp=>inp.addEventListener('input',e=>{
+   const row=e.target.closest('.plan-row'), idx=Number(row.dataset.i), field=e.target.dataset.field;
+   state.plan[idx][field]=e.target.value;
+ }));
+ list.querySelectorAll('button[data-act]').forEach(btn=>btn.addEventListener('click',e=>{
+   const row=e.target.closest('.plan-row'), idx=Number(row.dataset.i), act=e.target.dataset.act;
+   if(act==='remove') state.plan.splice(idx,1);
+   if(act==='up'&&idx>0) [state.plan[idx-1],state.plan[idx]]=[state.plan[idx],state.plan[idx-1]];
+   if(act==='down'&&idx<state.plan.length-1) [state.plan[idx+1],state.plan[idx]]=[state.plan[idx],state.plan[idx+1]];
+   renderPlan();
+ }));
+ const selected=new Set(state.plan.map(x=>String(x.id)));
+ const candidates=state.sourceRows.filter(x=>!selected.has(String(x.id)));
+ const sel=$('planAddSelect');
+ if(sel) sel.innerHTML='<option value="">Wybierz parkomat z pliku…</option>'+candidates.map(x=>`<option value="${state.sourceRows.indexOf(x)}">${escapeHtml(x.id)} — ${escapeHtml(x.address||x.location||'')}</option>`).join('');
+}
+$('planBackBtn')?.addEventListener('click',()=>showView('setupView'));
+$('planAddBtn')?.addEventListener('click',()=>{
+ const raw=$('planAddSelect')?.value, idx=Number(raw);
+ if(raw===''||!Number.isInteger(idx)||idx<0||!state.sourceRows[idx]){alert('Wybierz urządzenie do dodania.');return}
+ if(state.plan.length>=40){alert('Plan może zawierać maksymalnie 40 urządzeń.');return}
+ state.plan.push(cloneForPlan(state.sourceRows[idx],0)); renderPlan();
+});
+$('planOptimizeBtn')?.addEventListener('click',async()=>{
+ if(!state.plan.length){alert('Lista planowanych urządzeń jest pusta.');return}
+ if(state.plan.some(x=>!String(x.id||'').trim())){alert('Każdy parkomat musi mieć numer ID.');return}
+ const btn=$('planOptimizeBtn'), status=$('planOptimizeStatus');
  try{
-   btn.disabled=true; btn.textContent='Optymalizuję trasę po drogach…'; if(buildStatus)buildStatus.textContent='Pobieram czasy przejazdu po ulicach i układam najlepszą kolejność urządzeń…';
-   const optimized=await optimizeByRoadTime(ranked,state.start);
-   state.route=optimized.route;
+   btn.disabled=true; btn.textContent='Optymalizuję trasę po drogach…'; if(status)status.textContent='Pobieram czasy przejazdu po ulicach i układam kolejność przejazdu…';
+   const optimized=await optimizeByRoadTime(state.plan.map(x=>({...x})),state.start);
+   state.route=optimized.route.map(x=>({...x,address:x.address||x.location||'Brak adresu'}));
    state.routeMeta={startedAt:new Date().toISOString(),finishedAt:null,optimizationMode:optimized.mode}; state.history=[];
-   if(buildStatus)buildStatus.textContent=optimized.mode==='roads'?'Kolejność została zoptymalizowana według czasu przejazdu po drogach.':'Serwer drogowy był niedostępny — użyto awaryjnej optymalizacji GPS.';
+   if(status)status.textContent=optimized.mode==='roads'?'Kolejność została zoptymalizowana według czasu przejazdu po drogach.':'Serwer drogowy był niedostępny — użyto awaryjnej optymalizacji GPS.';
    saveState(); renderRoute(); showView('routeView');
- }finally{btn.disabled=false;btn.textContent='Wyznacz trasę'}
+ }finally{btn.disabled=false;btn.textContent='Zatwierdź listę i wyznacz trasę'}
+});
+$('editPlanBtn')?.addEventListener('click',()=>{
+ if(state.route.some(x=>x.status!=='pending')){alert('Nie można już edytować listy po rozpoczęciu obsługi urządzeń. Możesz rozpocząć nową trasę.');return}
+ state.plan=state.route.map(x=>({...x,address:x.address||x.location||'Brak adresu'})); renderPlan(); showView('planView');
 });
 
-function saveState(){localStorage.setItem('cpg-inkasacja-state',JSON.stringify({route:state.route,start:state.start,routeMeta:state.routeMeta,history:state.history}))}
+function saveState(){localStorage.setItem('cpg-inkasacja-state',JSON.stringify({plan:state.plan,route:state.route,start:state.start,routeMeta:state.routeMeta,history:state.history}))}
 function clearState(){localStorage.removeItem('cpg-inkasacja-state')}
-function restoreState(){try{const x=JSON.parse(localStorage.getItem('cpg-inkasacja-state'));if(x?.route?.length){state.route=x.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,...r}));state.start=x.start||state.start;state.routeMeta=x.routeMeta||{startedAt:null,finishedAt:null};state.history=x.history||[];renderRoute();showView('routeView')}}catch{}}
+function restoreState(){try{const x=JSON.parse(localStorage.getItem('cpg-inkasacja-state'));if(x?.route?.length){state.plan=(x.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r}));state.route=x.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r}));state.start=x.start||state.start;state.routeMeta=x.routeMeta||{startedAt:null,finishedAt:null};state.history=x.history||[];renderRoute();showView('routeView')}}catch{}}
 
 function renderRoute(){
  const done=state.route.filter(x=>x.status==='done').length, skipped=state.route.filter(x=>x.status==='skip').length;
@@ -155,8 +208,8 @@ function renderRoute(){
  if($('routeProgress'))$('routeProgress').textContent=`${progress}%`;
  const nextIndex=state.route.findIndex(x=>x.status==='pending');
  const q=(state.search||'').toLowerCase();
- const visible=state.route.map((x,i)=>({x,i})).filter(({x})=>(state.filter==='all'||x.status===state.filter)&&(!q||x.id.toLowerCase().includes(q)||x.location.toLowerCase().includes(q)));
- $('deviceList').innerHTML=visible.map(({x,i})=>`<div class="device-row ${i===nextIndex?'next-pending':''}" data-i="${i}"><div class="order">${i+1}</div><div><strong>${escapeHtml(x.id)}</strong><span class="priority-pill">priorytet ${Math.round(x.priority||0)}</span><div class="sub">${escapeHtml(x.location)}</div><span class="badge ${x.status==='done'?'done':x.status==='skip'?'skip':'pending'}">${x.status==='done'?'Zainkasowano':x.status==='skip'?'Nie zainkasowano':i===nextIndex?'Następny':'Do wykonania'}</span></div><div class="amount">${money(x.cash)}${x.status==='done'&&x.collectedCash!==null?`<div class="collected-value">wybrano: ${money2(x.collectedCash)}</div>`:''}<div class="sub">${Math.round(x.fill)}%</div></div></div>`).join('')||'<div class="card muted">Brak urządzeń spełniających filtr.</div>';
+ const visible=state.route.map((x,i)=>({x,i})).filter(({x})=>(state.filter==='all'||x.status===state.filter)&&(!q||x.id.toLowerCase().includes(q)||x.location.toLowerCase().includes(q)||(x.address||'').toLowerCase().includes(q)));
+ $('deviceList').innerHTML=visible.map(({x,i})=>`<div class="device-row ${i===nextIndex?'next-pending':''}" data-i="${i}"><div class="order">${i+1}</div><div><strong>${escapeHtml(x.id)}</strong><span class="priority-pill">priorytet ${Math.round(x.priority||0)}</span><div class="sub">${escapeHtml(x.location)}${x.address&&x.address!==x.location?` • ${escapeHtml(x.address)}`:''}</div><span class="badge ${x.status==='done'?'done':x.status==='skip'?'skip':'pending'}">${x.status==='done'?'Zainkasowano':x.status==='skip'?'Nie zainkasowano':i===nextIndex?'Następny':'Do wykonania'}</span></div><div class="amount">${money(x.cash)}${x.status==='done'&&x.collectedCash!==null?`<div class="collected-value">wybrano: ${money2(x.collectedCash)}</div>`:''}<div class="sub">${Math.round(x.fill)}%</div></div></div>`).join('')||'<div class="card muted">Brak urządzeń spełniających filtr.</div>';
  document.querySelectorAll('.device-row').forEach(el=>el.addEventListener('click',()=>openDevice(Number(el.dataset.i))));
  renderNextStop();
  saveState();
@@ -269,7 +322,7 @@ function renderMap(){
  state.markers.forEach(m=>state.map.removeLayer(m)); state.markers=[];
  const pts=[];
  if(canNavigate(state.start)){pts.push([state.start.lat,state.start.lng]);state.markers.push(L.marker([state.start.lat,state.start.lng]).addTo(state.map).bindPopup(escapeHtml(state.start.name)))}
- state.route.forEach((x,i)=>{if(canNavigate(x)){pts.push([x.lat,x.lng]); const m=L.marker([x.lat,x.lng]).addTo(state.map).bindPopup(`${i+1}. ${escapeHtml(x.id)}<br>${escapeHtml(x.location)}`);state.markers.push(m)}});
+ state.route.forEach((x,i)=>{if(canNavigate(x)){pts.push([x.lat,x.lng]); const m=L.marker([x.lat,x.lng]).addTo(state.map).bindPopup(`${i+1}. ${escapeHtml(x.id)}<br>${escapeHtml(x.location)}${x.address&&x.address!==x.location?`<br>${escapeHtml(x.address)}`:''}`);state.markers.push(m)}});
  if(state.routeLine)state.map.removeLayer(state.routeLine);
  if(pts.length>1)state.routeLine=L.polyline(pts,{weight:3,opacity:.35,dashArray:'7 7'}).addTo(state.map);
  if(pts.length)state.map.fitBounds(pts,{padding:[25,25]});
@@ -277,7 +330,7 @@ function renderMap(){
  drawRoadRoute(pts);
 }
 
-function openDevice(i){state.currentIndex=i; const x=state.route[i]; $('deviceIndex').textContent=`URZĄDZENIE ${i+1} Z ${state.route.length}`; $('deviceId').textContent=x.id; $('deviceLocation').textContent=x.location; $('deviceCash').textContent=money(x.cash); $('deviceFill').textContent=`${Math.round(x.fill)}%`; $('sealNumber').value=x.seal||''; if($('collectedCash')) $('collectedCash').value=(x.collectedCash===null||x.collectedCash===undefined)?'':String(x.collectedCash).replace('.',','); $('notes').value=x.notes||''; $('skipReason').value=x.reason||'Brak możliwości dojazdu'; setChoice(x.status==='skip'?'skip':'done'); updateQrStatus(x); $('undoDeviceBtn')?.classList.toggle('hidden',!state.history.some(h=>h.index===i)); showView('deviceView')}
+function openDevice(i){state.currentIndex=i; const x=state.route[i]; $('deviceIndex').textContent=`URZĄDZENIE ${i+1} Z ${state.route.length}`; $('deviceId').textContent=x.id; $('deviceLocation').textContent=x.address&&x.address!==x.location?`${x.location} • ${x.address}`:x.location; $('deviceCash').textContent=money(x.cash); $('deviceFill').textContent=`${Math.round(x.fill)}%`; $('sealNumber').value=x.seal||''; if($('collectedCash')) $('collectedCash').value=(x.collectedCash===null||x.collectedCash===undefined)?'':String(x.collectedCash).replace('.',','); $('notes').value=x.notes||''; $('skipReason').value=x.reason||'Brak możliwości dojazdu'; setChoice(x.status==='skip'?'skip':'done'); updateQrStatus(x); $('undoDeviceBtn')?.classList.toggle('hidden',!state.history.some(h=>h.index===i)); showView('deviceView')}
 function setChoice(choice){const skip=choice==='skip'; $('doneChoice').className='segment'+(!skip?' active':''); $('skipChoice').className='segment'+(skip?' skip-active':''); $('sealSection').classList.toggle('hidden',skip); $('skipSection').classList.toggle('hidden',!skip); $('deviceView').dataset.choice=choice}
 $('doneChoice').onclick=()=>setChoice('done'); $('skipChoice').onclick=()=>setChoice('skip'); $('backToRoute').onclick=()=>showView('routeView');
 function saveCurrentDevice(){
@@ -323,7 +376,7 @@ async function generateExcel(){
   header.eachCell(c=>{c.font={bold:true,color:{argb:'FFFFFFFF'}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF073B73'}};c.alignment={vertical:'middle',wrapText:true}});
   state.route.forEach((x,i)=>{
     const actualValue=x.status==='done' && x.collectedCash!==null && x.collectedCash!==undefined ? Number(x.collectedCash)||0 : null;
-    const row=ws.addRow({lp:i+1,id:x.id,location:x.location,seal:x.status==='done'?(x.seal||''):'',actual:actualValue});
+    const row=ws.addRow({lp:i+1,id:x.id,location:x.address||x.location,seal:x.status==='done'?(x.seal||''):'',actual:actualValue});
     row.getCell('E').numFmt='#,##0.00 "zł";[Red](#,##0.00 "zł");-';
     row.eachCell(c=>{c.alignment={vertical:'top',wrapText:true}});
   });
@@ -337,7 +390,7 @@ async function generateExcel(){
 }
 
 function escapeHtml(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-function resetAll(){if(confirm('Usunąć bieżącą trasę i rozpocząć od nowa?')){state.route=[];state.sourceRows=[];state.lastExcelBlob=null;clearState();$('fileStatus').textContent='Nie wczytano pliku.';showView('setupView')}}
+function resetAll(){if(confirm('Usunąć bieżącą trasę i rozpocząć od nowa?')){state.plan=[];state.route=[];state.sourceRows=[];state.lastExcelBlob=null;clearState();$('fileStatus').textContent='Nie wczytano pliku.';showView('setupView')}}
 $('resetBtn').onclick=resetAll; $('newRouteBtn').onclick=resetAll;
 
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
@@ -345,7 +398,7 @@ restoreState();
 
 // --- OneDrive / Microsoft 365 pilot workflow ---
 function sessionPayload(){
-  return {schema:'cpg-inkasacja-v3', exportedAt:new Date().toISOString(), start:state.start, route:state.route, routeMeta:state.routeMeta, history:state.history};
+  return {schema:'cpg-inkasacja-v3', exportedAt:new Date().toISOString(), start:state.start, plan:state.plan, route:state.route, routeMeta:state.routeMeta, history:state.history};
 }
 function downloadBlob(blob, filename){
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500);
@@ -360,7 +413,7 @@ async function importSessionFile(file){
   try{
     const data=JSON.parse(await file.text());
     if(!['cpg-inkasacja-v1','cpg-inkasacja-v2','cpg-inkasacja-v3'].includes(data.schema)||!Array.isArray(data.route)) throw new Error('Nieprawidłowy format pliku CPG Inkasacja.');
-    state.route=data.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,...r})); state.start=data.start||state.start; state.routeMeta=data.routeMeta||{startedAt:new Date().toISOString(),finishedAt:null}; state.history=data.history||[]; saveState(); renderRoute(); showView('routeView');
+    state.plan=(data.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r})); state.route=data.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r})); state.start=data.start||state.start; state.routeMeta=data.routeMeta||{startedAt:new Date().toISOString(),finishedAt:null}; state.history=data.history||[]; saveState(); renderRoute(); showView('routeView');
   }catch(e){alert('Nie udało się wznowić trasy: '+e.message)}
 }
 $('exportSessionBtn')?.addEventListener('click',exportSession);
