@@ -103,6 +103,13 @@ function sampleData(){
 $('sampleBtn').addEventListener('click',sampleData);
 $('fileInput').addEventListener('change', async e=>{
  const file=e.target.files[0]; if(!file)return;
+ const fileName=String(file.name||'').toLowerCase();
+ const allowed=['.xlsx','.xls','.csv'];
+ if(!allowed.some(ext=>fileName.endsWith(ext))){
+   e.target.value='';
+   alert('Wybierz plik Excel XLSX/XLS albo CSV.');
+   return;
+ }
  try{
    $('fileStatus').textContent='Odczytywanie pliku…';
    const buf=await file.arrayBuffer();
