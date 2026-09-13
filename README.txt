@@ -1,18 +1,20 @@
-CPG Inkasacja - uproszczony widok mobilny
+CPG Inkasacja - poprawka Google Maps do 50 punktow
 
-Podmien w repozytorium trzy pliki:
+Co zmieniono:
+- przycisk "Google Maps (do 50)" nie ogranicza sie juz do pierwszych 10 parkomatow,
+- do 50 pozostalych punktow jest dzielonych automatycznie na odcinki po maks. 10,
+- odcinki zachowuja kolejnosc trasy,
+- kazdy kolejny odcinek zaczyna sie od ostatniego punktu poprzedniego,
+- dodano prosty mobilny panel wyboru odcinka,
+- podbito cache service workera.
+
+Wazne:
+Google Maps URLs maja limit punktow posrednich w jednym linku, dlatego 50 punktow nie da sie wiarygodnie wyswietlic jako jedna trasa w pojedynczym linku bez uzycia platnego/kluczowanego API. Ta poprawka obsluguje cala trase przez maks. 5 kolejnych odcinkow.
+
+Pliki do podmiany/dodania w repozytorium:
 - index.html
 - styles.css
 - sw.js
+- route50.js (nowy)
 
-app.js i manifest.webmanifest pozostaja bez zmian.
-
-Zmiany:
-- prostszy ekran startowy na telefonie,
-- mniej tekstu i mniej duzych kart,
-- ustawienia dodatkowe schowane w rozwijanych sekcjach,
-- wieksze przyciski i pola dotykowe,
-- najwazniejsza akcja zawsze blisko dolnej krawedzi,
-- uproszczona trasa i obsluga parkomatu,
-- domyslny punkt startowy: Komitetu Obrony Robotnikow 48, Warszawa,
-- nowa wersja cache PWA.
+app.js pozostaje bez zmian.
