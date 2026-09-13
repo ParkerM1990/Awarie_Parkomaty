@@ -32,7 +32,7 @@
           <label class="filebox">
             <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
             <span class="file-icon">＋</span>
-            <span><strong>Wybierz Excel lub CSV</strong><small>Lista parkomatów z gotówką i współrzędnymi</small></span>
+            <span><strong>Wybierz Terminal Balance</strong><small>Odczyt: Terminal - Terminal ID + Coin - Balance • GPS i adres uzupełniane po ID</small></span>
           </label>
           <div id="fileStatus" class="status muted">Nie wczytano pliku.</div>
           <button id="sampleBtn" class="text-button">Użyj danych przykładowych</button>
@@ -50,8 +50,8 @@
 
           <label class="field-label" for="deviceCount">Liczba parkomatów</label>
           <div class="count-row">
-            <input id="deviceCount" type="number" min="1" max="40" value="35" />
-            <span>maks. 40</span>
+            <input id="deviceCount" type="number" min="1" max="50" value="35" />
+            <span>maks. 50</span>
           </div>
 
           <details class="details-box">
@@ -64,7 +64,7 @@
           </details>
         </div>
 
-        <div class="simple-note">Aplikacja wybierze parkomaty z największą szacowaną gotówką i ułoży trasę po drogach.</div>
+        <div class="simple-note">Aplikacja wybierze parkomaty z najwyższym stanem gotówki „Coin - Balance” i ułoży trasę po drogach.</div>
 
         <button id="buildRouteBtn" class="primary full big sticky-action">Przygotuj listę</button>
         <div id="routeBuildStatus" class="status muted"></div>
@@ -115,7 +115,7 @@
           <div class="stat main-stat"><span id="statSelected">0</span><small>punktów</small></div>
           <div class="stat main-stat"><span id="statDone">0</span><small>zrobione</small></div>
           <div class="stat main-stat"><span id="statCollectedCash">0 zł</span><small>wybrano</small></div>
-          <div class="stat secondary-stat"><span id="statCash">0 zł</span><small>szac.</small></div>
+          <div class="stat secondary-stat"><span id="statCash">0 zł</span><small>stan gotówki</small></div>
           <div class="stat secondary-stat"><span id="statSkipped">0</span><small>pominięte</small></div>
         </div>
 
@@ -171,9 +171,8 @@
           <h1 id="deviceId"></h1>
           <p id="deviceLocation" class="location"></p>
           <div class="device-mini-stats">
-            <span><small>Szacowana gotówka</small><strong id="deviceCash"></strong></span>
+            <span><small>Stan gotówki</small><strong id="deviceCash"></strong></span>
           </div>
-          <strong id="deviceFill" hidden></strong>
         </div>
 
         <button id="navigateDeviceBtn" class="primary full big">Nawiguj do parkomatu</button>
@@ -263,6 +262,7 @@
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="terminals-data.js"></script>
   <script src="app.js"></script>
   <script src="route50.js"></script>
   <script src="hide-fill.js"></script>

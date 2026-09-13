@@ -1,7 +1,7 @@
 const state = {
   sourceRows: [], plan: [], route: [], currentIndex: null, map: null, markers: [], lastExcelBlob: null,
   currentPosition: null, filter:'all', search:'', history:[], routeMeta:{startedAt:null,finishedAt:null},
-  start: {name:'Baza CPG', lat:51.4021, lng:21.1473}
+  start: {name:'Baza CPG — Komitetu Obrony Robotników 48, Warszawa', lat:52.183869, lng:20.966869}
 };
 
 const $ = id => document.getElementById(id);
@@ -12,19 +12,77 @@ function money2(v){return new Intl.NumberFormat('pl-PL',{style:'currency',curren
 function num(v){if(v===null||v===undefined||v==='')return 0; if(typeof v==='number')return v; return Number(String(v).replace(/\s/g,'').replace('%','').replace(',','.').replace(/[^0-9.-]/g,''))||0}
 function normKey(k){return String(k||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'')}
 function pick(obj, aliases){const keys=Object.keys(obj); for(const a of aliases){const found=keys.find(k=>normKey(k)===normKey(a)); if(found!==undefined && obj[found]!==undefined && obj[found]!==null && obj[found]!=='') return obj[found]} return ''}
+function terminalKey(v){
+  return String(v??'').trim().replace(/\.0+$/,'').replace(/\s+/g,'');
+}
+function terminalById(id){
+  return (window.CPG_TERMINALS && window.CPG_TERMINALS[terminalKey(id)]) || null;
+}
+
+// Nazwy kolumn obsługiwane przy imporcie. Pierwsze pozycje odpowiadają
+// bezpośrednio raportowi „Terminal Balance” z systemu CPG.
+const ID_ALIASES=['Terminal - Terminal ID','Terminal ID','TerminalID','ID','Nr','Numer','parkomat','nrparkomatu','urzadzenie','terminal'];
+const LOCATION_ALIASES=['Terminal - Location','Lokalizacja','location','miejsce','strefa'];
+const CASH_ALIASES=['Coin - Balance','Coin Balance','Gotowka','Gotówka','Kwota','cash','stan gotowki','stan gotówki','wartosc','amount'];
+
+function detectHeaderRow(ws){
+  const preview=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+  const limit=Math.min(preview.length,20);
+  for(let i=0;i<limit;i++){
+    const keys=(preview[i]||[]).map(normKey).filter(Boolean);
+    const hasId=ID_ALIASES.some(a=>keys.includes(normKey(a)));
+    const hasCash=CASH_ALIASES.some(a=>keys.includes(normKey(a)));
+    if(hasId&&hasCash)return i;
+  }
+  return 0;
+}
+
+function worksheetToRows(ws){
+  const headerRow=detectHeaderRow(ws);
+  const rows=XLSX.utils.sheet_to_json(ws,{range:headerRow,defval:'',raw:true});
+  return {rows,headerRow};
+}
+
+function hasAnyColumn(rows,aliases){
+  const keys=Object.keys(rows?.[0]||{});
+  return aliases.some(a=>keys.some(k=>normKey(k)===normKey(a)));
+}
+
 function normalizeRow(r,i){
+  const pickedId=pick(r,ID_ALIASES);
+  const id=terminalKey(pickedId);
+  if(!id)return null;
+  const terminal=terminalById(id);
+
   let lat=num(pick(r,['Y','lat','latitude','szerokosc','szerokoscgeograficzna']));
   let lng=num(pick(r,['X','lng','lon','longitude','dlugosc','dlugoscgeograficzna']));
   if(Math.abs(lat)>90 && Math.abs(lng)<=90){const t=lat;lat=lng;lng=t}
-  const rawLocation=String(pick(r,['Lokalizacja','location','miejsce','strefa'])||'').trim();
+
+  // CSV z rozliczenia nie musi miec wspolrzednych. Gdy ich brakuje,
+  // aplikacja uzupelnia je po Terminal ID ze stalej bazy terminals-data.js.
+  const csvHasCoords=(Number.isFinite(lat)&&Number.isFinite(lng)&&(lat!==0||lng!==0));
+  if(!csvHasCoords && terminal){
+    lat=num(terminal.lat);
+    lng=num(terminal.lng);
+  }
+
+  const rawLocation=String(pick(r,LOCATION_ALIASES)||'').trim();
   const rawAddress=String(pick(r,['Adres','address','ulica'])||'').trim();
+  const terminalAddress=String(terminal?.address||'').trim();
+  const terminalNode=String(terminal?.node||'').trim();
+  const address=rawAddress||terminalAddress||rawLocation||'Brak adresu';
+  const location=rawLocation||terminalNode||terminalAddress||rawAddress||'Brak lokalizacji';
+
   return {
-    id:String(pick(r,['ID','Nr','Numer','parkomat','nrparkomatu','urzadzenie'])||`P-${String(i+1).padStart(3,'0')}`),
-    location:rawLocation||rawAddress||'Brak lokalizacji',
-    address:rawAddress||rawLocation||'Brak adresu',
+    id,
+    location,
+    address,
     lat,lng,
-    cash:num(pick(r,['Gotowka','Kwota','cash','stan gotowki','wartosc','amount'])),
-    fill:num(pick(r,['Zapelnienie','Procent','fill','procent zapelnienia','poziom zapelnienia'])),
+    cash:num(pick(r,CASH_ALIASES)),
+    fill:0,
+    terminalMatched:!!terminal,
+    coordSource:csvHasCoords?'csv':(terminal&&lat&&lng?'terminal-db':'missing'),
+    terminalStatus:terminal?.status||'',
     status:'pending', seal:'', reason:'', notes:'', updatedAt:null, priority:0, collectedCash:null, qrRaw:'', qrScannedAt:null
   }
 }
@@ -46,11 +104,31 @@ $('sampleBtn').addEventListener('click',sampleData);
 $('fileInput').addEventListener('change', async e=>{
  const file=e.target.files[0]; if(!file)return;
  try{
-   const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]];
-   const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
-   state.sourceRows=rows.map(normalizeRow).filter(r=>r.id);
-   $('fileStatus').textContent=`Wczytano ${file.name}: ${state.sourceRows.length} urządzeń.`;
- }catch(err){alert('Nie udało się odczytać pliku: '+err.message)}
+   $('fileStatus').textContent='Odczytywanie pliku…';
+   const buf=await file.arrayBuffer();
+   const wb=XLSX.read(buf,{type:'array'});
+   const ws=wb.Sheets[wb.SheetNames[0]];
+   const parsed=worksheetToRows(ws);
+   const rows=parsed.rows;
+
+   if(!rows.length) throw new Error('Plik nie zawiera danych.');
+   if(!hasAnyColumn(rows,ID_ALIASES)) throw new Error('Nie znaleziono kolumny „Terminal - Terminal ID”.');
+   if(!hasAnyColumn(rows,CASH_ALIASES)) throw new Error('Nie znaleziono kolumny „Coin - Balance”.');
+
+   state.sourceRows=rows.map(normalizeRow).filter(Boolean);
+   if(!state.sourceRows.length) throw new Error('Nie znaleziono żadnych parkomatów do wczytania.');
+
+   const matched=state.sourceRows.filter(r=>r.terminalMatched).length;
+   const gps=state.sourceRows.filter(r=>Number(r.lat)&&Number(r.lng)).length;
+   const missing=state.sourceRows.length-gps;
+   const positive=state.sourceRows.filter(r=>(Number(r.cash)||0)>0).length;
+   $('fileStatus').textContent=`Wczytano ${file.name}: ${state.sourceRows.length} parkomatów • gotówka: Coin - Balance • powiązano z bazą: ${matched} • GPS: ${gps}${missing?` • brak GPS: ${missing}`:''} • z gotówką > 0: ${positive}.`;
+   if(missing) console.warn('Brak współrzędnych GPS dla:',state.sourceRows.filter(r=>!Number(r.lat)||!Number(r.lng)).map(r=>r.id));
+ }catch(err){
+   state.sourceRows=[];
+   $('fileStatus').textContent='Nie udało się wczytać pliku.';
+   alert('Nie udało się odczytać pliku: '+err.message);
+ }
 });
 
 function distance(a,b){const R=6371, toRad=x=>x*Math.PI/180; const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng); const aa=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2; return 2*R*Math.atan2(Math.sqrt(aa),Math.sqrt(1-aa))}
@@ -126,7 +204,7 @@ async function optimizeByRoadTime(items,start){
 function cloneForPlan(x, priority=0){return {...x,address:x.address||x.location||'Brak adresu',location:x.location||x.address||'Brak lokalizacji',status:'pending',seal:'',reason:'',notes:'',updatedAt:null,priority,collectedCash:null,qrRaw:'',qrScannedAt:null}}
 function preparePlan(){
  if(!state.sourceRows.length){alert('Najpierw wczytaj plik lub dane przykładowe.');return}
- const count=Math.max(1,Math.min(40,num($('deviceCount').value)||35));
+ const count=Math.max(1,Math.min(50,num($('deviceCount').value)||35));
  state.start={name:$('startName').value||'Punkt startowy',lat:num($('startLat').value),lng:num($('startLng').value)};
  state.plan=[...state.sourceRows]
    .sort((a,b)=>(Number(b.cash)||0)-(Number(a.cash)||0))
@@ -240,7 +318,7 @@ function renderRoute(){
  const nextIndex=state.route.findIndex(x=>x.status==='pending');
  const q=(state.search||'').toLowerCase();
  const visible=state.route.map((x,i)=>({x,i})).filter(({x})=>(state.filter==='all'||x.status===state.filter)&&(!q||x.id.toLowerCase().includes(q)||x.location.toLowerCase().includes(q)||(x.address||'').toLowerCase().includes(q)));
- $('deviceList').innerHTML=visible.map(({x,i})=>`<div class="device-row ${i===nextIndex?'next-pending':''}" data-i="${i}"><div class="order">${i+1}</div><div><strong>${escapeHtml(x.id)}</strong><div class="sub">${escapeHtml(x.location)}${x.address&&x.address!==x.location?` • ${escapeHtml(x.address)}`:''}</div><span class="badge ${x.status==='done'?'done':x.status==='skip'?'skip':'pending'}">${x.status==='done'?'Zainkasowano':x.status==='skip'?'Nie zainkasowano':i===nextIndex?'Następny':'Do wykonania'}</span></div><div class="amount">${money(x.cash)}${x.status==='done'&&x.collectedCash!==null?`<div class="collected-value">wybrano: ${money2(x.collectedCash)}</div>`:''}<div class="sub">${Math.round(x.fill)}%</div></div></div>`).join('')||'<div class="card muted">Brak urządzeń spełniających filtr.</div>';
+ $('deviceList').innerHTML=visible.map(({x,i})=>`<div class="device-row ${i===nextIndex?'next-pending':''}" data-i="${i}"><div class="order">${i+1}</div><div><strong>${escapeHtml(x.id)}</strong><div class="sub">${escapeHtml(x.location)}${x.address&&x.address!==x.location?` • ${escapeHtml(x.address)}`:''}</div><span class="badge ${x.status==='done'?'done':x.status==='skip'?'skip':'pending'}">${x.status==='done'?'Zainkasowano':x.status==='skip'?'Nie zainkasowano':i===nextIndex?'Następny':'Do wykonania'}</span></div><div class="amount">${money(x.cash)}${x.status==='done'&&x.collectedCash!==null?`<div class="collected-value">wybrano: ${money2(x.collectedCash)}</div>`:''}</div></div>`).join('')||'<div class="card muted">Brak urządzeń spełniających filtr.</div>';
  document.querySelectorAll('.device-row').forEach(el=>el.addEventListener('click',()=>openDevice(Number(el.dataset.i))));
  renderNextStop();
  saveState();
@@ -361,7 +439,7 @@ function renderMap(){
  drawRoadRoute(pts);
 }
 
-function openDevice(i){state.currentIndex=i; const x=state.route[i]; $('deviceIndex').textContent=`URZĄDZENIE ${i+1} Z ${state.route.length}`; $('deviceId').textContent=x.id; $('deviceLocation').textContent=x.address&&x.address!==x.location?`${x.location} • ${x.address}`:x.location; $('deviceCash').textContent=money(x.cash); $('deviceFill').textContent=`${Math.round(x.fill)}%`; $('sealNumber').value=x.seal||''; if($('collectedCash')) $('collectedCash').value=(x.collectedCash===null||x.collectedCash===undefined)?'':String(x.collectedCash).replace('.',','); $('notes').value=x.notes||''; $('skipReason').value=x.reason||'Brak możliwości dojazdu'; setChoice(x.status==='skip'?'skip':'done'); updateQrStatus(x); $('undoDeviceBtn')?.classList.toggle('hidden',!state.history.some(h=>h.index===i)); showView('deviceView')}
+function openDevice(i){state.currentIndex=i; const x=state.route[i]; $('deviceIndex').textContent=`URZĄDZENIE ${i+1} Z ${state.route.length}`; $('deviceId').textContent=x.id; $('deviceLocation').textContent=x.address&&x.address!==x.location?`${x.location} • ${x.address}`:x.location; $('deviceCash').textContent=money(x.cash); $('sealNumber').value=x.seal||''; if($('collectedCash')) $('collectedCash').value=(x.collectedCash===null||x.collectedCash===undefined)?'':String(x.collectedCash).replace('.',','); $('notes').value=x.notes||''; $('skipReason').value=x.reason||'Brak możliwości dojazdu'; setChoice(x.status==='skip'?'skip':'done'); updateQrStatus(x); $('undoDeviceBtn')?.classList.toggle('hidden',!state.history.some(h=>h.index===i)); showView('deviceView')}
 function setChoice(choice){const skip=choice==='skip'; $('doneChoice').className='segment'+(!skip?' active':''); $('skipChoice').className='segment'+(skip?' skip-active':''); $('sealSection').classList.toggle('hidden',skip); $('skipSection').classList.toggle('hidden',!skip); $('deviceView').dataset.choice=choice}
 $('doneChoice').onclick=()=>setChoice('done'); $('skipChoice').onclick=()=>setChoice('skip'); $('backToRoute').onclick=()=>showView('routeView');
 function saveCurrentDevice(){
