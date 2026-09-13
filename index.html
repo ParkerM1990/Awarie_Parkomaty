@@ -12,262 +12,250 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <div>
+      <div class="brand-wrap">
         <div class="brand">CPG</div>
-        <div class="brand-sub">CITY PARKING GROUP</div>
+        <div class="brand-sub">INKASACJA</div>
       </div>
       <button id="resetBtn" class="ghost small">Nowa trasa</button>
     </header>
 
     <main>
       <section id="setupView" class="view active">
-        <div class="hero">
-          <span class="eyebrow">INKASACJA PARKOMATÓW</span>
-          <h1>Przygotuj trasę inkasacji</h1>
-          <p>Wczytaj Excel/CSV, wybierz urządzenia o największym poziomie gotówki i rozpocznij obsługę trasy.</p>
+        <div class="page-head compact-head">
+          <span class="eyebrow">START</span>
+          <h1>Przygotuj konwój</h1>
+          <p>Wczytaj plik, wybierz liczbę parkomatów i rozpocznij.</p>
         </div>
 
-        <div class="card cloud-card">
-          <div class="cloud-head"><div class="cloud-icon">☁</div><div><h2 style="margin:0">OneDrive / Microsoft 365</h2><span class="sync-badge"><span class="sync-dot"></span>tryb pilotażowy</span></div></div>
-          <p>Plik roboczy może być przechowywany w folderze OneDrive. Na telefonie wybierz plik z aplikacji Pliki → OneDrive. Postęp trasy można eksportować do pliku JSON i później wznowić.</p>
-          <div class="cloud-actions">
-            <button id="exportSessionBtn" class="secondary full">Zapisz postęp do OneDrive</button>
-            <label class="secondary full" style="text-align:center;cursor:pointer">Wznów z pliku<input id="sessionInput" type="file" accept=".json" hidden></label>
-          </div>
-          <div class="cloud-note">Automatyczne pobieranie i zapis bez wybierania pliku wymaga rejestracji aplikacji Microsoft Entra ID / Graph. Ten etap podłączymy po ustaleniu konta i folderu firmowego.</div>
-        </div>
-
-        <div class="card">
-          <h2>1. Dane urządzeń</h2>
+        <div class="card primary-card">
+          <h2>1. Wczytaj dane</h2>
           <label class="filebox">
             <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
-            <strong>Wybierz plik Excel lub CSV</strong>
-            <span>Obsługiwane kolumny: ID, lokalizacja/adres, X/longitude, Y/latitude, gotówka, zapełnienie.</span>
+            <span class="file-icon">＋</span>
+            <span><strong>Wybierz Excel lub CSV</strong><small>Lista parkomatów z gotówką i współrzędnymi</small></span>
           </label>
           <div id="fileStatus" class="status muted">Nie wczytano pliku.</div>
-          <button id="sampleBtn" class="secondary full">Wczytaj dane przykładowe</button>
-        </div>
-
-        <div class="card grid-2">
-          <div>
-            <label>Punkt startowy</label>
-            <input id="startName" value="Baza CPG" />
-          </div>
-          <div>
-            <label>Liczba urządzeń</label>
-            <input id="deviceCount" type="number" min="1" max="40" value="35" />
-          </div>
-          <div>
-            <label>Latitude punktu startowego</label>
-            <input id="startLat" type="number" step="0.000001" value="51.4021" />
-          </div>
-          <div>
-            <label>Longitude punktu startowego</label>
-            <input id="startLng" type="number" step="0.000001" value="21.1473" />
-          </div>
+          <button id="sampleBtn" class="text-button">Użyj danych przykładowych</button>
         </div>
 
         <div class="card">
-          <h2>2. Kryterium wyboru</h2>
-          <p><strong>Największa ilość gotówki</strong></p>
-          <p class="hint">Aplikacja wybiera wskazaną liczbę parkomatów z najwyższą szacowaną kwotą gotówki. Procent zapełnienia pozostaje informacją pomocniczą, ale nie wpływa na wybór urządzeń.</p>
-          <p class="hint">Kolejność urządzeń jest optymalizowana według rzeczywistego czasu przejazdu po drogach przez bezpłatny routing OpenStreetMap/OSRM. Nie jest wymagany klucz Google. Jeśli serwer drogowy będzie chwilowo niedostępny, aplikacja automatycznie użyje awaryjnej optymalizacji GPS.</p>
+          <div class="section-row">
+            <div>
+              <span class="eyebrow">PUNKT STARTOWY</span>
+              <strong class="big-value">Warszawa</strong>
+              <span class="muted">Komitetu Obrony Robotników 48</span>
+            </div>
+            <span class="pin">⌖</span>
+          </div>
+
+          <label class="field-label" for="deviceCount">Liczba parkomatów</label>
+          <div class="count-row">
+            <input id="deviceCount" type="number" min="1" max="40" value="35" />
+            <span>maks. 40</span>
+          </div>
+
+          <details class="details-box">
+            <summary>Ustawienia punktu startowego</summary>
+            <div class="details-grid">
+              <label>Nazwa<input id="startName" value="Baza CPG — Komitetu Obrony Robotników 48, Warszawa" /></label>
+              <label>Latitude<input id="startLat" type="number" step="0.000001" value="52.183869" /></label>
+              <label>Longitude<input id="startLng" type="number" step="0.000001" value="20.966869" /></label>
+            </div>
+          </details>
         </div>
 
-        <button id="buildRouteBtn" class="primary full big">Przygotuj listę parkomatów</button>
+        <div class="simple-note">Aplikacja wybierze parkomaty z największą szacowaną gotówką i ułoży trasę po drogach.</div>
+
+        <button id="buildRouteBtn" class="primary full big sticky-action">Przygotuj listę</button>
         <div id="routeBuildStatus" class="status muted"></div>
+
+        <details class="details-box secondary-details">
+          <summary>OneDrive / wznawianie trasy</summary>
+          <div class="details-actions">
+            <button id="exportSessionBtn" class="secondary full">Zapisz postęp</button>
+            <label class="secondary full file-button">Wznów z pliku<input id="sessionInput" type="file" accept=".json" hidden></label>
+          </div>
+        </details>
       </section>
 
-
       <section id="planView" class="view">
-        <button id="planBackBtn" class="ghost back">← Powrót do ustawień</button>
-        <div class="hero">
-          <span class="eyebrow">PLAN INKASACJI</span>
-          <h1>Sprawdź i popraw listę parkomatów</h1>
-          <p>Przed wyznaczeniem trasy możesz poprawić ID, lokalizację i adres, usunąć pozycję albo dodać inne urządzenie z wczytanego pliku.</p>
+        <div class="page-nav">
+          <button id="planBackBtn" class="ghost back">← Wstecz</button>
+          <span class="step-label">PLAN</span>
         </div>
+        <div class="page-head compact-head">
+          <h1>Sprawdź listę</h1>
+          <p>Możesz usunąć, dodać lub poprawić parkomat przed startem.</p>
+        </div>
+
         <div class="card plan-summary">
-          <div><small>Liczba planowanych urządzeń</small><strong id="planCount">0</strong></div>
+          <div><small>Wybrane</small><strong id="planCount">0</strong></div>
           <div class="plan-add-box">
-            <select id="planAddSelect"><option value="">Wybierz parkomat z pliku…</option></select>
+            <select id="planAddSelect"><option value="">Dodaj parkomat…</option></select>
             <button id="planAddBtn" class="secondary">Dodaj</button>
           </div>
         </div>
-        <div class="plan-table-head"><span>Lp.</span><span>ID parkomatu</span><span>Lokalizacja</span><span>Adres</span><span>Akcje</span></div>
+
         <div id="planList" class="plan-list"></div>
-        <div class="card plan-note">Zmiany na tej liście dotyczą wyłącznie planu bieżącej trasy. Dane źródłowe w pliku Excel/CSV nie są modyfikowane.</div>
-        <button id="exportPlanExcelBtn" class="secondary full big">Pobierz listę planowanych parkomatów (Excel)</button>
-        <button id="planOptimizeBtn" class="primary full big">Zatwierdź listę i wyznacz trasę</button>
+        <button id="exportPlanExcelBtn" class="secondary full">Pobierz listę Excel</button>
+        <button id="planOptimizeBtn" class="primary full big sticky-action">Wyznacz trasę</button>
         <div id="planOptimizeStatus" class="status muted"></div>
       </section>
 
       <section id="routeView" class="view">
-        <div class="stats-grid">
-          <div class="stat"><span id="statSelected">0</span><small>wybranych</small></div>
-          <div class="stat"><span id="statCash">0 zł</span><small>szacowana gotówka</small></div>
-          <div class="stat"><span id="statCollectedCash">0 zł</span><small>wybrana gotówka</small></div>
-          <div class="stat"><span id="statDone">0</span><small>zainkasowano</small></div>
-          <div class="stat"><span id="statSkipped">0</span><small>pominięto</small></div>
+        <div class="route-top">
+          <div>
+            <span class="eyebrow">TRASA</span>
+            <strong id="routeTitle">Konwój</strong>
+          </div>
+          <button id="finishBtn" class="danger compact">Zakończ</button>
+        </div>
+
+        <div class="stats-strip">
+          <div class="stat main-stat"><span id="statSelected">0</span><small>punktów</small></div>
+          <div class="stat main-stat"><span id="statDone">0</span><small>zrobione</small></div>
+          <div class="stat main-stat"><span id="statCollectedCash">0 zł</span><small>wybrano</small></div>
+          <div class="stat secondary-stat"><span id="statCash">0 zł</span><small>szac.</small></div>
+          <div class="stat secondary-stat"><span id="statSkipped">0</span><small>pominięte</small></div>
         </div>
 
         <div id="map"></div>
-        <div id="roadRouteStatus" class="road-route-status">Trasa drogowa zostanie wyznaczona po ulicach.</div>
+        <div id="roadRouteStatus" class="road-route-status">Wyznaczam trasę po ulicach…</div>
 
         <div id="nextStopCard" class="card next-stop-card hidden">
           <div class="next-stop-head">
             <div>
-              <span class="eyebrow">NASTĘPNY PUNKT</span>
-              <h2 id="nextStopId" style="margin:5px 0 2px"></h2>
+              <span class="eyebrow">NASTĘPNY</span>
+              <h2 id="nextStopId"></h2>
               <div id="nextStopLocation" class="muted"></div>
             </div>
             <div id="nextStopCash" class="next-stop-cash"></div>
           </div>
-          <div class="nav-actions">
-            <button id="navigateNextBtn" class="primary">Nawiguj do następnego</button>
-            <button id="openNextBtn" class="secondary">Otwórz urządzenie</button>
+          <div class="nav-actions two-cols">
+            <button id="navigateNextBtn" class="primary">Nawiguj</button>
+            <button id="openNextBtn" class="secondary">Otwórz</button>
           </div>
         </div>
 
-        <div class="card navigation-tools">
-          <div>
-            <strong>Nawigacja terenowa</strong>
-            <div class="muted nav-help">Uruchom prowadzenie w mapach telefonu lub przelicz pozostałe punkty od bieżącej pozycji. Kolejność pozostałych urządzeń zostanie ponownie zoptymalizowana według czasu przejazdu po drogach. Na iPhone otworzy się Apple Maps, na pozostałych urządzeniach Google Maps — bez klucza Google.</div>
-          </div>
-          <div class="nav-actions">
-            <button id="reoptimizeBtn" class="secondary">Przelicz od mojej pozycji</button>
-            <button id="fullRouteBtn" class="secondary">Pokaż pozostałą trasę</button>
-          </div>
-          <div id="gpsStatus" class="status muted"></div>
-        </div>
-
-        <div class="card route-meta">
-          <div><small>Start trasy</small><strong id="routeStartedAt">—</strong></div>
-          <div><small>Czas pracy</small><strong id="routeElapsed">—</strong></div>
+        <div class="route-meta card compact-card">
+          <div><small>Start</small><strong id="routeStartedAt">—</strong></div>
+          <div><small>Czas</small><strong id="routeElapsed">—</strong></div>
           <div><small>Postęp</small><strong id="routeProgress">0%</strong></div>
         </div>
 
-        <div class="card toolbar">
-          <div>
-            <strong id="routeTitle">Trasa</strong>
-            <div id="routeSummary" class="muted"></div>
-          </div>
-          <div class="toolbar-actions"><button id="exportRoutePlanExcelBtn" class="secondary">Lista dla konwojentów</button><button id="editPlanBtn" class="secondary">Edytuj listę</button><button id="finishBtn" class="danger">Zakończ trasę</button></div>
+        <div class="route-tools">
+          <button id="reoptimizeBtn" class="secondary">↻ Od mojej pozycji</button>
+          <button id="fullRouteBtn" class="secondary">Cała trasa</button>
+          <button id="exportRoutePlanExcelBtn" class="secondary">Lista Excel</button>
+          <button id="editPlanBtn" class="secondary">Edytuj listę</button>
         </div>
+        <div id="gpsStatus" class="status muted"></div>
 
-        <div class="card filter-card">
-          <div class="filter-row">
-            <button class="filter-chip active" data-filter="all">Wszystkie</button>
-            <button class="filter-chip" data-filter="pending">Do wykonania</button>
-            <button class="filter-chip" data-filter="done">Zainkasowane</button>
-            <button class="filter-chip" data-filter="skip">Pominięte</button>
-          </div>
-          <input id="deviceSearch" placeholder="Szukaj po numerze lub lokalizacji" />
+        <div class="list-head">
+          <div id="routeSummary" class="muted"></div>
+          <input id="deviceSearch" placeholder="Szukaj parkomatu" />
+        </div>
+        <div class="filter-row compact-filters">
+          <button class="filter-chip active" data-filter="all">Wszystkie</button>
+          <button class="filter-chip" data-filter="pending">Do zrobienia</button>
+          <button class="filter-chip" data-filter="done">Gotowe</button>
+          <button class="filter-chip" data-filter="skip">Pominięte</button>
         </div>
         <div id="deviceList" class="device-list"></div>
       </section>
 
       <section id="deviceView" class="view">
-        <button id="backToRoute" class="ghost back">← Powrót do listy</button>
-        <div class="card device-detail">
+        <button id="backToRoute" class="ghost back">← Trasa</button>
+        <div class="page-head device-head">
           <span id="deviceIndex" class="eyebrow"></span>
           <h1 id="deviceId"></h1>
           <p id="deviceLocation" class="location"></p>
-          <div class="detail-grid">
-            <div><small>Szacowana gotówka</small><strong id="deviceCash"></strong></div>
-            <div><small>Zapełnienie</small><strong id="deviceFill"></strong></div>
+          <div class="device-mini-stats">
+            <span><small>Szacowana</small><strong id="deviceCash"></strong></span>
+            <span><small>Zapełnienie</small><strong id="deviceFill"></strong></span>
           </div>
         </div>
 
-        <div class="card navigation-device-card">
-          <h2>Dojazd</h2>
-          <p class="hint">Otwórz nawigację samochodową do tego parkomatu. Nie jest wymagany żaden klucz API; mapy telefonu odpowiadają wyłącznie za prowadzenie do wskazanego punktu.</p>
-          <div class="nav-actions">
-            <button id="navigateDeviceBtn" class="primary">Nawiguj</button>
-            <button id="copyCoordsBtn" class="secondary">Kopiuj współrzędne</button>
-          </div>
-        </div>
+        <button id="navigateDeviceBtn" class="primary full big">Nawiguj do parkomatu</button>
+        <button id="copyCoordsBtn" class="text-button full">Kopiuj współrzędne</button>
 
         <div class="card">
-          <h2>Status urządzenia</h2>
           <div class="segmented">
             <button id="doneChoice" class="segment active">Opróżniono</button>
-            <button id="skipChoice" class="segment">Nie można zainkasować</button>
+            <button id="skipChoice" class="segment">Pominięto</button>
           </div>
 
           <div id="sealSection">
-            <label>Numer plomby</label>
-            <input id="sealNumber" placeholder="np. CPG458732" autocomplete="off" />
-
-            <div class="cash-collection-box">
-              <div class="cash-collection-head">
-                <div>
-                  <label style="margin:0">Faktycznie wybrana gotówka</label>
-                  <div class="hint">Zeskanuj kod QR z kwotą lub wpisz kwotę ręcznie.</div>
-                </div>
-                <span id="qrStatusBadge" class="qr-badge">DO UZUPEŁNIENIA</span>
-              </div>
-              <div class="cash-input-row">
-                <div class="money-input-wrap"><input id="collectedCash" inputmode="decimal" placeholder="np. 2840,50" autocomplete="off" /><span>PLN</span></div>
-                <button id="scanQrBtn" type="button" class="qr-button">▦ Skanuj QR</button>
-              </div>
-              <div id="qrLastInfo" class="hint"></div>
+            <label>Numer plomby<input id="sealNumber" placeholder="np. CPG458732" autocomplete="off" /></label>
+            <label>Wybrana gotówka</label>
+            <div class="cash-input-row">
+              <div class="money-input-wrap"><input id="collectedCash" inputmode="decimal" placeholder="0,00" autocomplete="off" /><span>PLN</span></div>
+              <button id="scanQrBtn" type="button" class="qr-button">▦ QR</button>
             </div>
+            <div class="qr-line"><span id="qrStatusBadge" class="qr-badge">DO UZUPEŁNIENIA</span><span id="qrLastInfo" class="hint"></span></div>
           </div>
 
           <div id="skipSection" class="hidden">
-            <label>Powód</label>
-            <select id="skipReason">
+            <label>Powód<select id="skipReason">
               <option>Brak możliwości dojazdu</option>
               <option>Awaria urządzenia</option>
               <option>Roboty drogowe / zamknięta ulica</option>
               <option>Brak możliwości bezpiecznego postoju</option>
               <option>Inny</option>
-            </select>
+            </select></label>
           </div>
 
-          <label>Uwagi (opcjonalnie)</label>
-          <textarea id="notes" rows="3" maxlength="300" placeholder="Dodatkowe informacje"></textarea>
-          <button id="saveAndNavigateBtn" class="primary full">Zapisz i nawiguj do następnego</button>
-          <button id="saveDeviceBtn" class="secondary full">Zapisz i wróć do trasy</button>
-          <button id="undoDeviceBtn" class="ghost-action full hidden">Cofnij ostatnią zmianę tego urządzenia</button>
+          <details class="details-box notes-details">
+            <summary>Uwagi</summary>
+            <textarea id="notes" rows="3" maxlength="300" placeholder="Dodatkowe informacje"></textarea>
+          </details>
+
+          <button id="saveAndNavigateBtn" class="primary full big">Zapisz i jedź dalej</button>
+          <button id="saveDeviceBtn" class="secondary full">Zapisz i wróć</button>
+          <button id="undoDeviceBtn" class="text-button full hidden">Cofnij ostatnią zmianę</button>
         </div>
       </section>
 
       <section id="finishView" class="view">
-        <div class="hero centered">
+        <div class="page-head centered finish-head">
           <div class="checkmark">✓</div>
-          <h1>Zakończenie trasy</h1>
-          <p>Raport Excel obejmie wszystkie urządzenia wybrane do trasy i będzie zawierał tylko: Lp., numer parkomatu, adres parkomatu, numer plomby oraz kwotę fizycznie wybranej gotówki.</p>
+          <h1>Zakończyć trasę?</h1>
+          <p>Raport Excel zostanie przygotowany automatycznie.</p>
         </div>
-        <div id="finishStats" class="stats-grid"></div>
+        <div id="finishStats" class="stats-strip finish-stats"></div>
         <div class="card route-summary-card" id="finishTiming"></div>
-        <div class="card">
-          <h2>Urządzenia nieobsłużone</h2>
+        <details class="details-box">
+          <summary>Nieobsłużone urządzenia</summary>
           <div id="unfinishedList" class="compact-list"></div>
-        </div>
+        </details>
         <button id="confirmFinishBtn" class="primary full big">Zakończ i przygotuj Excel</button>
         <button id="returnRouteBtn" class="secondary full">Wróć do trasy</button>
       </section>
 
       <section id="reportView" class="view">
-        <div class="hero centered">
+        <div class="page-head centered finish-head">
           <div class="checkmark">✓</div>
           <h1>Raport gotowy</h1>
           <p id="reportSummary"></p>
         </div>
-        <button id="downloadPdfBtn" class="primary full big">Pobierz / zapisz raport Excel</button>
-        <button id="exportSessionReportBtn" class="secondary full">Zapisz archiwum trasy (JSON)</button>
-        <button id="newRouteBtn" class="secondary full">Rozpocznij nową trasę</button>
+        <button id="downloadPdfBtn" class="primary full big">Pobierz raport Excel</button>
+        <details class="details-box secondary-details">
+          <summary>Więcej opcji</summary>
+          <button id="exportSessionReportBtn" class="secondary full">Zapisz archiwum trasy</button>
+        </details>
+        <button id="newRouteBtn" class="secondary full">Nowa trasa</button>
       </section>
     </main>
   </div>
 
   <div id="qrModal" class="qr-modal hidden" aria-hidden="true">
     <div class="qr-modal-card">
-      <div class="qr-modal-head"><div><span class="eyebrow">SKANOWANIE KODU</span><h2>Zeskanuj kwotę z QR</h2></div><button id="closeQrBtn" class="qr-close" type="button">×</button></div>
+      <div class="qr-modal-head">
+        <div><span class="eyebrow">SKANER</span><h2>Zeskanuj QR</h2></div>
+        <button id="closeQrBtn" class="qr-close" type="button">×</button>
+      </div>
       <div id="qrReader"></div>
       <div id="qrScannerStatus" class="status muted">Uruchamianie aparatu…</div>
-      <p class="hint">Obsługiwany jest kod zawierający samą kwotę (np. 2840,50), tekst „KWOTA=2840,50” albo JSON, np. {"amount":2840.50,"id":"RA-101"}.</p>
     </div>
   </div>
 
