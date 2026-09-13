@@ -18,3 +18,5 @@ Pliki do podmiany/dodania w repozytorium:
 - route50.js (nowy)
 
 app.js pozostaje bez zmian.
+
+Zmiana: usunięto całkowicie widoczny procent zapełnienia parkomatu z interfejsu. Pole techniczne pozostaje ukryte wyłącznie dla zgodności z app.js.

@@ -171,9 +171,9 @@
           <h1 id="deviceId"></h1>
           <p id="deviceLocation" class="location"></p>
           <div class="device-mini-stats">
-            <span><small>Szacowana</small><strong id="deviceCash"></strong></span>
-            <span><small>Zapełnienie</small><strong id="deviceFill"></strong></span>
+            <span><small>Szacowana gotówka</small><strong id="deviceCash"></strong></span>
           </div>
+          <strong id="deviceFill" hidden></strong>
         </div>
 
         <button id="navigateDeviceBtn" class="primary full big">Nawiguj do parkomatu</button>
@@ -265,5 +265,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
   <script src="route50.js"></script>
+  <script src="hide-fill.js"></script>
 </body>
 </html>
