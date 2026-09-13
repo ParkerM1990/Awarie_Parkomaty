@@ -1,6 +1,8 @@
-// CPG Inkasacja - pelna trasa Google Maps do 50 punktow
-// Google Maps URL obsluguje ograniczona liczbe punktow posrednich w pojedynczym linku,
-// dlatego trasa jest dzielona na odcinki po maks. 10 parkomatow.
+// CPG Inkasacja - Google Maps do 50 punktow.
+// Trasa jest dzielona na odcinki po maks. 10 parkomatow.
+// Punkt startowy NIE jest przekazywany do Google Maps: nawigacja startuje
+// z biezacej lokalizacji telefonu. Baza CPG (KOR 48) sluzy tylko do obliczen
+// i optymalizacji trasy wewnatrz aplikacji.
 (function(){
   function el(id){ return document.getElementById(id); }
 
@@ -13,12 +15,15 @@
     return `${Number(x.lat).toFixed(6)},${Number(x.lng).toFixed(6)}`;
   }
 
-  function buildGoogleMapsUrl(points, origin){
+  function buildGoogleMapsUrl(points){
     if(!points.length) return null;
     const destination = points[points.length - 1];
     const waypoints = points.slice(0, -1);
-    let url = 'https://www.google.com/maps/dir/?api=1&travelmode=driving';
-    if(origin && hasCoords(origin)) url += `&origin=${encodeURIComponent(coord(origin))}`;
+
+    // Brak parametru origin = Google Maps korzysta z biezacej lokalizacji telefonu.
+    // dir_action=navigate prosi aplikacje Google Maps o uruchomienie prowadzenia,
+    // zamiast otwarcia samego podgladu trasy.
+    let url = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate';
     url += `&destination=${encodeURIComponent(coord(destination))}`;
     if(waypoints.length){
       url += `&waypoints=${encodeURIComponent(waypoints.map(coord).join('|'))}`;
@@ -28,7 +33,9 @@
 
   function getPendingRoute(){
     try{
-      return (state?.route || []).filter(x => x.status === 'pending' && hasCoords(x)).slice(0, 50);
+      return (state?.route || [])
+        .filter(x => x.status === 'pending' && hasCoords(x))
+        .slice(0, 50);
     }catch(e){
       return [];
     }
@@ -42,24 +49,17 @@
     return chunks;
   }
 
-  function getOriginForSegment(chunks, index){
-    if(index > 0) return chunks[index-1][chunks[index-1].length-1];
-    try{
-      if(state?.currentPosition && hasCoords(state.currentPosition)) return state.currentPosition;
-      if(state?.start && hasCoords(state.start)) return state.start;
-    }catch(e){}
-    return null;
-  }
-
   function closeRouteModal(){
     const modal = el('route50Modal');
     if(modal) modal.remove();
   }
 
   function openSegment(chunks, index){
-    const url = buildGoogleMapsUrl(chunks[index], getOriginForSegment(chunks, index));
+    const url = buildGoogleMapsUrl(chunks[index]);
     if(!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // Wywolanie jest bezposrednia reakcja na klikniecie uzytkownika, wiec
+    // telefon moze przekazac adres do aplikacji Google Maps.
+    window.location.href = url;
   }
 
   function showRouteSegments(){
@@ -69,8 +69,6 @@
       return;
     }
 
-    // Maks. 10 parkomatow na jeden link Google Maps (9 waypointow + cel).
-    // Przy 50 punktach powstaje maks. 5 odcinkow.
     const chunks = chunkRoute(points, 10);
     closeRouteModal();
 
@@ -82,12 +80,12 @@
       const firstNo = idx * 10 + 1;
       const lastNo = firstNo + segment.length - 1;
       const first = segment[0];
-      const last = segment[segment.length-1];
+      const last = segment[segment.length - 1];
       return `
         <button class="route50-segment" data-segment="${idx}">
           <span class="route50-segment-no">${idx+1}</span>
           <span class="route50-segment-text">
-            <strong>Odcinek ${idx+1}: punkty ${firstNo}-${lastNo}</strong>
+            <strong>Nawiguj: punkty ${firstNo}-${lastNo}</strong>
             <small>${escapeText(first.id || '')} → ${escapeText(last.id || '')}</small>
           </span>
           <span class="route50-arrow">›</span>
@@ -96,15 +94,15 @@
 
     modal.innerHTML = `
       <div class="route50-backdrop" data-close="1"></div>
-      <div class="route50-sheet" role="dialog" aria-modal="true" aria-label="Trasa Google Maps">
+      <div class="route50-sheet" role="dialog" aria-modal="true" aria-label="Nawigacja Google Maps">
         <div class="route50-head">
           <div>
             <span class="eyebrow">GOOGLE MAPS</span>
-            <h2>Trasa do ${points.length} punktow</h2>
+            <h2>Nawigacja do ${points.length} punktow</h2>
           </div>
           <button class="route50-close" data-close="1" aria-label="Zamknij">×</button>
         </div>
-        <p class="route50-note">Google Maps nie przyjmuje 50 punktow w jednym linku. Otwieraj kolejne odcinki po 10 punktow; kazdy nastepny zaczyna sie od ostatniego punktu poprzedniego.</p>
+        <p class="route50-note">Kazdy odcinek uruchamia Google Maps od biezacej lokalizacji telefonu. Baza KOR 48 jest uzywana tylko do obliczenia kolejnosci trasy w aplikacji CPG.</p>
         <div class="route50-list">${rows}</div>
       </div>`;
 
@@ -122,9 +120,9 @@
   function install(){
     const oldBtn = el('fullRouteBtn');
     if(!oldBtn) return;
-    // Klon usuwa poprzedni listener z app.js, ktory ograniczal trase do 10 punktow.
+    // Klon usuwa listener z app.js, ktory otwieral trase z ograniczona liczba punktow.
     const btn = oldBtn.cloneNode(true);
-    btn.textContent = 'Google Maps (do 50)';
+    btn.textContent = 'Nawigacja Google Maps (do 50)';
     oldBtn.replaceWith(btn);
     btn.addEventListener('click', showRouteSegments);
   }

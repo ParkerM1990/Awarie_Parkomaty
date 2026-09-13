@@ -61,3 +61,9 @@ input,select,textarea{width:100%;min-height:46px;border:1px solid #ccd6e0;border
 .route50-segment-text strong{display:block;font-size:14px}
 .route50-segment-text small{display:block;margin-top:3px;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .route50-arrow{font-size:26px;color:#7b8b9b}
+
+/* CPG: poziom zapelnienia parkomatu jest calkowicie ukryty w UI. */
+#deviceFill,
+.device-row .amount > .sub {
+  display: none !important;
+}

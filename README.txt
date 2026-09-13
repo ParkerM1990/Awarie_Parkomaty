@@ -1,22 +1,20 @@
-CPG Inkasacja - poprawka Google Maps do 50 punktow
+CPG Inkasacja - poprawka mobilna: nawigacja Google Maps + brak zapelnienia
 
-Co zmieniono:
-- przycisk "Google Maps (do 50)" nie ogranicza sie juz do pierwszych 10 parkomatow,
-- do 50 pozostalych punktow jest dzielonych automatycznie na odcinki po maks. 10,
-- odcinki zachowuja kolejnosc trasy,
-- kazdy kolejny odcinek zaczyna sie od ostatniego punktu poprzedniego,
-- dodano prosty mobilny panel wyboru odcinka,
-- podbito cache service workera.
+ZMIANY:
+1. Usunieto z widocznego interfejsu ostatnia informacje o procencie zapelnienia parkomatu.
+   Starszy app.js moze nadal przechowywac pole fill wewnetrznie, ale nie jest ono nigdzie wyswietlane.
+2. Przycisk "Nawigacja Google Maps (do 50)" dzieli trase na odcinki po maks. 10 parkomatow.
+3. Google Maps NIE dostaje stalego punktu poczatkowego KOR 48.
+4. Kazdy odcinek otwiera sie z parametrem dir_action=navigate i bez origin, dzieki czemu
+   Google Maps korzysta z biezacej lokalizacji telefonu i moze uruchomic prowadzenie.
+5. Adres KOR 48 pozostaje w aplikacji CPG tylko jako baza do obliczenia/optymalizacji trasy.
+6. Zmieniono wersje cache PWA, aby telefon pobral nowe pliki.
 
-Wazne:
-Google Maps URLs maja limit punktow posrednich w jednym linku, dlatego 50 punktow nie da sie wiarygodnie wyswietlic jako jedna trasa w pojedynczym linku bez uzycia platnego/kluczowanego API. Ta poprawka obsluguje cala trase przez maks. 5 kolejnych odcinkow.
-
-Pliki do podmiany/dodania w repozytorium:
+PODMIEN W REPOZYTORIUM:
 - index.html
 - styles.css
 - sw.js
-- route50.js (nowy)
+- route50.js
+- hide-fill.js
 
-app.js pozostaje bez zmian.
-
-Zmiana: usunięto całkowicie widoczny procent zapełnienia parkomatu z interfejsu. Pole techniczne pozostaje ukryte wyłącznie dla zgodności z app.js.
+Pliku app.js nie trzeba zmieniac.
