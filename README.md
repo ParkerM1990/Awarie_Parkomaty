@@ -9,3 +9,7 @@ Wersja z inteligentnym wyborem parkomatów, importem `Terminal Balance.xlsx`, ba
 - **Microsoft 365:** opcjonalny i potrzebny tylko planiście, jeśli ma automatycznie pobierać najnowszy `Terminal Balance`.
 
 Konfiguracja wspólnego Google Drive jest opisana w `README_GOOGLE_APPS_SCRIPT.md`.
+
+
+## QR gotówki
+Skaner rozpoznaje kwoty zapisane m.in. jako `1,60 zł`, `1,60 zl`, `1,60 PLN` oraz format parkomatu `1,60 z_`.

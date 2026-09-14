@@ -930,11 +930,24 @@ $('deviceSearch')?.addEventListener('input',e=>{state.search=e.target.value;rend
 // --- QR scanner: kwota faktycznie wybranej gotowki ---
 let qrScanner=null;
 function parseQrPayload(raw){
-  const text=String(raw||'').trim(); let amount=null,id=null;
-  try{const obj=JSON.parse(text); amount=num(obj.amount??obj.kwota??obj.cash??obj.gotowka); id=obj.id??obj.deviceId??obj.parkomat??null; if(amount||String(obj.amount??obj.kwota??obj.cash??obj.gotowka??'').trim()==='0') return {amount,id,raw:text}}catch{}
-  const idMatch=text.match(/(?:ID|PARKOMAT|URZADZENIE|URZĄDZENIE)\s*[:=]\s*([^;|,]+)/i); if(idMatch)id=idMatch[1].trim();
-  const amountMatch=text.match(/(?:KWOTA|AMOUNT|CASH|GOTOWKA|GOTÓWKA|PLN)\s*[:=]?\s*(-?\d[\d\s]*(?:[.,]\d{1,2})?)/i);
-  if(amountMatch) amount=num(amountMatch[1]); else if(/^\s*-?\d[\d\s]*(?:[.,]\d{1,2})?\s*(?:PLN|ZŁ|ZL)?\s*$/i.test(text)) amount=num(text);
+  // Parkomaty potrafia kodowac symbol "zl" w roznych formach zależnych od strony kodowej,
+  // np. prawidlowe "1,60 zl" moze zostac odczytane jako "1,60 z_".
+  // Dlatego najpierw zachowujemy oryginalny tekst, a do rozpoznania kwoty uzywamy
+  // wersji oczyszczonej z niewidocznych znakow sterujacych.
+  const text=String(raw||'').trim();
+  const cleanText=text.replace(/\u00A0/g,' ').replace(/[\u0000-\u001F\u007F]/g,' ').trim();
+  let amount=null,id=null;
+  try{const obj=JSON.parse(cleanText); amount=num(obj.amount??obj.kwota??obj.cash??obj.gotowka); id=obj.id??obj.deviceId??obj.parkomat??null; if(amount||String(obj.amount??obj.kwota??obj.cash??obj.gotowka??'').trim()==='0') return {amount,id,raw:text}}catch{}
+  const idMatch=cleanText.match(/(?:ID|PARKOMAT|URZADZENIE|URZĄDZENIE)\s*[:=]\s*([^;|,]+)/i); if(idMatch)id=idMatch[1].trim();
+  const amountMatch=cleanText.match(/(?:KWOTA|AMOUNT|CASH|GOTOWKA|GOTÓWKA|PLN)\s*[:=]?\s*(-?\d[\d\s]*(?:[.,]\d{1,2})?)/i);
+  if(amountMatch){
+    amount=num(amountMatch[1]);
+  }else{
+    // Samodzielna kwota z opcjonalnym oznaczeniem waluty. Oprocz PLN/zl/zl
+    // akceptujemy tez "z_", spotykane w kodach QR z parkomatow.
+    const standalone=cleanText.match(/^\s*(-?\d[\d\s]*(?:[.,]\d{1,2})?)\s*(?:PLN|ZŁ|ZL|Z_|Z\?|Z�|ZÅ‚|Z)?\s*$/i);
+    if(standalone) amount=num(standalone[1]);
+  }
   return Number.isFinite(amount)&&amount>=0?{amount,id,raw:text}:null;
 }
 function updateQrStatus(x=state.route[state.currentIndex]){if(!$('qrStatusBadge'))return; const has=$('collectedCash')?.value?.trim()!==''; $('qrStatusBadge').textContent=has?(x?.qrScannedAt?'Z QR':'WPIS RĘCZNY'):'DO UZUPEŁNIENIA'; $('qrStatusBadge').classList.toggle('ok',has); $('qrLastInfo').textContent=x?.qrScannedAt?`Ostatni skan: ${formatDateTime(x.qrScannedAt)}`:''}
