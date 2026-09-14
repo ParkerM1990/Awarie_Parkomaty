@@ -20,19 +20,80 @@
     </header>
 
     <main>
-      <section id="setupView" class="view active">
+      <section id="homeView" class="view active">
+        <div class="page-head centered home-head">
+          <span class="eyebrow">CPG INKASACJA</span>
+          <h1>Konwój gotówki</h1>
+          <p>Wybierz, co chcesz zrobić.</p>
+        </div>
+        <div class="role-grid">
+          <button id="plannerModeBtn" class="role-card primary-role" type="button">
+            <span class="role-icon">＋</span>
+            <strong>Przygotuj konwój</strong>
+            <small>Wczytaj stan gotówki, wybierz parkomaty, wyznacz trasę i opublikuj ją dla konwojenta.</small>
+          </button>
+          <button id="executorModeBtn" class="role-card" type="button">
+            <span class="role-icon">▶</span>
+            <strong>Realizuj konwój</strong>
+            <small>Pobierz opublikowaną trasę i uzupełniaj plomby, kwoty oraz statusy podczas przejazdu.</small>
+          </button>
+        </div>
+        <div class="card m365-card">
+          <div class="section-row">
+            <div><span class="eyebrow">MICROSOFT 365 • PLANISTA</span><strong id="m365UserLabel">Tryb lokalny</strong><span id="m365Status" class="muted">Opcjonalne źródło najnowszego Terminal Balance.</span></div>
+            <button id="m365ConnectBtn" class="secondary compact" type="button">Połącz</button>
+          </div>
+        </div>
+        <div class="card google-card">
+          <div class="section-row">
+            <div><span class="eyebrow">GOOGLE • WSPÓLNY KONWÓJ</span><strong>Publikacja i synchronizacja</strong><span id="googleCloudStatus" class="muted">Google Apps Script wymaga jednorazowej konfiguracji.</span></div>
+            <span id="googleCloudBadge" class="cloud-badge">NIEAKTYWNE</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="convoyLoadView" class="view">
+        <div class="page-nav"><button id="executorBackBtn" class="ghost back">← Menu</button><span class="step-label">REALIZACJA</span></div>
+        <div class="page-head compact-head"><h1>Wybierz konwój</h1><p>Konwojent pobiera gotowy plan — nie musi ponownie wgrywać stanu gotówki ani wyznaczać trasy.</p></div>
+        <div class="card">
+          <label class="field-label" for="executorConvoyDate">Data konwoju</label>
+          <input id="executorConvoyDate" type="date" />
+          <label class="field-label" for="executorAccessCode">Kod konwoju</label>
+          <input id="executorAccessCode" type="text" inputmode="text" autocomplete="off" autocapitalize="off" placeholder="np. q7B2Kx9LmP3A" />
+          <button id="loadConvoyCloudBtn" class="primary full big">Pobierz plan z Google</button>
+          <div id="convoyLoadStatus" class="status muted">Najprościej otwórz link otrzymany od planisty. Data i kod uzupełnią się automatycznie.</div>
+        </div>
+        <details class="details-box secondary-details">
+          <summary>Tryb awaryjny — plik planu</summary>
+          <label class="secondary full file-button">Wczytaj plan JSON<input id="executorPlanInput" type="file" accept=".json" hidden></label>
+        </details>
+      </section>
+
+      <section id="setupView" class="view">
+        <div class="page-nav"><button id="plannerBackBtn" class="ghost back">← Menu</button><span class="step-label">PLANOWANIE</span></div>
         <div class="page-head compact-head">
-          <span class="eyebrow">START</span>
+          <span class="eyebrow">PLANISTA</span>
           <h1>Przygotuj konwój</h1>
-          <p>Wczytaj plik, wybierz liczbę parkomatów i rozpocznij.</p>
+          <p>Wybierz dzień, pobierz aktualny stan gotówki i przygotuj trasę dla konwojenta.</p>
+        </div>
+
+        <div class="card">
+          <h2>1. Dzień konwoju</h2>
+          <label class="field-label" for="convoyDate">Data realizacji</label>
+          <div class="date-action-row">
+            <input id="convoyDate" type="date" />
+            <button id="nextWorkdayBtn" class="secondary" type="button">Następny dzień roboczy</button>
+          </div>
         </div>
 
         <div class="card primary-card">
-          <h2>1. Wczytaj dane</h2>
+          <h2>2. Stan gotówki</h2>
+          <button id="loadLatestBalanceBtn" class="primary full" type="button">Pobierz najnowszy Terminal Balance z OneDrive</button>
+          <div class="source-separator"><span>albo</span></div>
           <label class="filebox">
             <input id="fileInput" type="file" />
             <span class="file-icon">＋</span>
-            <span><strong>Wybierz Terminal Balance</strong><small>Obsługiwane pliki: XLSX, XLS i CSV • GPS i adres uzupełniane po ID</small></span>
+            <span><strong>Wgraj Terminal Balance ręcznie</strong><small>Obsługiwane: XLSX, XLS i CSV • GPS i adres uzupełniane po ID</small></span>
           </label>
           <div id="fileStatus" class="status muted">Nie wczytano pliku.</div>
           <button id="sampleBtn" class="text-button">Użyj danych przykładowych</button>
@@ -81,10 +142,10 @@
         <div id="routeBuildStatus" class="status muted"></div>
 
         <details class="details-box secondary-details">
-          <summary>OneDrive / wznawianie trasy</summary>
+          <summary>Tryb awaryjny</summary>
           <div class="details-actions">
-            <button id="exportSessionBtn" class="secondary full">Zapisz postęp</button>
-            <label class="secondary full file-button">Wznów z pliku<input id="sessionInput" type="file" accept=".json" hidden></label>
+            <button id="exportSessionBtn" class="secondary full">Pobierz plik planu/postępu</button>
+            <label class="secondary full file-button">Wczytaj plik planu<input id="sessionInput" type="file" accept=".json" hidden></label>
           </div>
         </details>
       </section>
@@ -114,6 +175,25 @@
       </section>
 
       <section id="routeView" class="view">
+        <div id="plannerPublishBar" class="card workflow-banner hidden">
+          <div><span class="eyebrow">PLAN GOTOWY</span><strong id="plannerPlanDate">—</strong><small>Sprawdź trasę i opublikuj ją dla konwojenta.</small></div>
+          <button id="publishConvoyBtn" class="primary">Opublikuj konwój</button>
+          <div id="shareConvoyBox" class="share-convoy-box hidden">
+            <small>LINK DLA KONWOJENTA</small>
+            <input id="shareConvoyLink" type="text" readonly />
+            <div class="share-actions">
+              <button id="copyShareLinkBtn" class="secondary compact" type="button">Kopiuj link</button>
+              <button id="copyShareCodeBtn" class="secondary compact" type="button">Kopiuj kod</button>
+            </div>
+            <small id="shareConvoyCode" class="muted"></small>
+          </div>
+        </div>
+        <div id="executorStartBar" class="card workflow-banner hidden">
+          <div><span class="eyebrow">GOTOWY DO STARTU</span><strong id="executorPlanDate">—</strong><small id="executorPlanStatus">Plan pobrany.</small></div>
+          <button id="startConvoyBtn" class="primary">Rozpocznij konwój</button>
+        </div>
+        <div id="cloudSyncBar" class="cloud-sync hidden"><span id="cloudSyncStatus">Zapis w chmurze aktywny</span></div>
+
         <div class="route-top">
           <div>
             <span class="eyebrow">TRASA</span>
@@ -273,6 +353,11 @@
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://alcdn.msauth.net/browser/5.3.0/js/msal-browser.min.js"></script>
+  <script src="ms365-config.js"></script>
+  <script src="m365.js"></script>
+  <script src="google-config.js"></script>
+  <script src="google-cloud.js"></script>
   <script src="terminals-data.js"></script>
   <script src="app.js"></script>
   <script src="route50.js"></script>

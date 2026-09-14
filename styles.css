@@ -68,3 +68,18 @@ input,select,textarea{width:100%;min-height:46px;border:1px solid #ccd6e0;border
 .device-row .amount > .sub {
   display: none !important;
 }
+
+
+/* Shared planner / executor workflow */
+.home-head{padding-top:28px}.role-grid{display:grid;gap:14px;margin:12px 0 18px}.role-card{display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;padding:20px;border:1px solid #d8e1ea;border-radius:18px;background:#fff;text-align:left;color:#0f2740;box-shadow:0 7px 22px rgba(8,43,76,.07)}.role-card strong{font-size:1.18rem}.role-card small{font-size:.9rem;line-height:1.35;color:#65778a}.role-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#eef4fa;color:#063b73;font-size:1.4rem;font-weight:800}.primary-role{border-color:#a9c5e3}.primary-role .role-icon{background:#063b73;color:#fff}.m365-card{margin-top:8px}.m365-card .section-row{align-items:center}.m365-card strong,.m365-card span{display:block}.date-action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}.date-action-row input{min-height:48px}.source-separator{display:flex;align-items:center;gap:10px;margin:14px 0;color:#8493a2;font-size:.82rem}.source-separator:before,.source-separator:after{content:"";height:1px;background:#e1e7ed;flex:1}.workflow-banner{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin-bottom:12px;border-left:5px solid #063b73}.workflow-banner strong,.workflow-banner small{display:block}.workflow-banner small{color:#65778a;margin-top:4px}.cloud-sync{position:sticky;top:8px;z-index:400;margin:6px auto 10px;padding:7px 10px;border-radius:999px;background:#eaf4ee;color:#24633c;font-size:.78rem;text-align:center;width:max-content;max-width:100%}.available-convoys{display:grid;gap:8px;margin-top:12px}.convoy-item{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;padding:13px 14px;border:1px solid #dce4eb;border-radius:12px;background:#fff;text-align:left;color:#17344e}.convoy-item small{color:#718293}.workflow-locked{display:none!important}.hidden{display:none!important}
+@media(max-width:600px){.date-action-row,.workflow-banner{grid-template-columns:1fr}.date-action-row button,.workflow-banner button{width:100%}.role-card{padding:17px}.m365-card .section-row{gap:10px;align-items:flex-start}.m365-card .section-row>button{flex:0 0 auto}}
+
+/* Google convoy sharing */
+.google-card{border:1px solid rgba(34,120,70,.18)}
+.cloud-badge{display:inline-flex;align-items:center;justify-content:center;padding:7px 10px;border-radius:999px;font-size:11px;font-weight:800;background:#eef2f5;color:#5c6670;white-space:nowrap}
+.cloud-badge.ok{background:#e8f6ed;color:#19713a}
+.share-convoy-box{width:100%;margin-top:12px;padding-top:12px;border-top:1px solid rgba(5,47,90,.1)}
+.share-convoy-box input{width:100%;margin:6px 0 8px;font-size:13px}
+.share-actions{display:flex;gap:8px;flex-wrap:wrap}
+#executorAccessCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em}
+@media (max-width:640px){.workflow-banner{align-items:stretch}.share-convoy-box{flex-basis:100%}.share-actions>*{flex:1}}
