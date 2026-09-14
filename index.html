@@ -48,10 +48,21 @@
             <span class="pin">⌖</span>
           </div>
 
-          <label class="field-label" for="deviceCount">Liczba parkomatów</label>
-          <div class="count-row">
-            <input id="deviceCount" type="number" min="1" max="50" value="35" />
-            <span>maks. 50</span>
+          <div class="selection-grid">
+            <div>
+              <label class="field-label" for="deviceCount">Liczba parkomatów</label>
+              <div class="count-row">
+                <input id="deviceCount" type="number" min="1" max="50" value="35" inputmode="numeric" />
+                <span>maks. 50</span>
+              </div>
+            </div>
+            <div>
+              <label class="field-label" for="cashThreshold">Próg gotówki</label>
+              <div class="count-row threshold-row">
+                <input id="cashThreshold" type="number" min="0" step="100" value="1500" inputmode="decimal" />
+                <span>PLN min.</span>
+              </div>
+            </div>
           </div>
 
           <details class="details-box">
@@ -64,7 +75,7 @@
           </details>
         </div>
 
-        <div class="simple-note">Aplikacja wybierze parkomaty z najwyższym stanem gotówki „Coin - Balance” i ułoży trasę po drogach.</div>
+        <div class="simple-note">Najpierw stosowany jest próg gotówki. Następnie aplikacja wybiera wskazaną liczbę parkomatów tak, aby ograniczyć czas przejazdu między nimi. Przy bardzo podobnym czasie preferowana jest wyższa gotówka.</div>
 
         <button id="buildRouteBtn" class="primary full big sticky-action">Przygotuj listę</button>
         <div id="routeBuildStatus" class="status muted"></div>

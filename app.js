@@ -208,16 +208,247 @@ async function optimizeByRoadTime(items,start){
   }finally{clearTimeout(timer)}
 }
 
+// --- Inteligentny wybór parkomatów do inkasa ---
+// 1) twardy filtr kwotowy,
+// 2) wybór zestawu o możliwie najkrótszym czasie przejazdu,
+// 3) kwota jest tylko kryterium pomocniczym przy bardzo podobnym czasie.
+const ROAD_SELECTION_MAX_CANDIDATES=80; // + punkt startowy = maks. 81 punktów w macierzy OSRM
+const ROAD_SELECTION_TIMEOUT_MS=20000;
+
+function bestInsertionForOrder(order, candidateIdx, matrix){
+  if(!order.length){
+    const v=matrix?.[0]?.[candidateIdx];
+    return {pos:0,delta:Number.isFinite(v)?v:Infinity};
+  }
+  let best={pos:order.length,delta:Infinity};
+  for(let pos=0;pos<=order.length;pos++){
+    const prev=pos===0?0:order[pos-1];
+    const next=pos===order.length?null:order[pos];
+    const a=matrix?.[prev]?.[candidateIdx];
+    if(!Number.isFinite(a))continue;
+    let delta=a;
+    if(next!==null){
+      const b=matrix?.[candidateIdx]?.[next];
+      const direct=matrix?.[prev]?.[next];
+      if(!Number.isFinite(b)||!Number.isFinite(direct))continue;
+      delta=a+b-direct;
+    }
+    if(delta<best.delta)best={pos,delta};
+  }
+  return best;
+}
+
+function twoOptMatrixOrder(order,matrix){
+  if(order.length<4)return [...order];
+  let bestOrder=[...order],bestCost=matrixRouteCost(bestOrder,matrix),improved=true,passes=0;
+  while(improved&&passes<5){
+    improved=false; passes++;
+    for(let i=0;i<bestOrder.length-1;i++){
+      for(let k=i+1;k<bestOrder.length;k++){
+        const candidate=[...bestOrder.slice(0,i),...bestOrder.slice(i,k+1).reverse(),...bestOrder.slice(k+1)];
+        const cost=matrixRouteCost(candidate,matrix);
+        if(cost+1<bestCost){bestOrder=candidate;bestCost=cost;improved=true}
+      }
+    }
+  }
+  return bestOrder;
+}
+
+function chooseSeedIndexes(matrix,candidates){
+  const ids=candidates.map((_,i)=>i+1).filter(i=>Number.isFinite(matrix?.[0]?.[i]));
+  ids.sort((a,b)=>(matrix[0][a]??Infinity)-(matrix[0][b]??Infinity));
+  if(ids.length<=18)return ids;
+  const seeds=new Set(ids.slice(0,6));
+  // Kilka punktów z różnych zakresów czasu od bazy, żeby nie zamykać się tylko na najbliższej dzielnicy.
+  for(let q=0;q<12;q++){
+    const pos=Math.round((ids.length-1)*(q/11));
+    seeds.add(ids[pos]);
+  }
+  // Dodaj kilka urządzeń z najwyższą kwotą jako alternatywne ziarna, ale nie zmieniaj głównego kryterium czasu.
+  candidates
+    .map((x,i)=>({idx:i+1,cash:Number(x.cash)||0}))
+    .sort((a,b)=>b.cash-a.cash)
+    .slice(0,4)
+    .forEach(x=>seeds.add(x.idx));
+  return [...seeds].slice(0,22);
+}
+
+function buildEfficientOrderFromMatrix(matrix,candidates,count){
+  const target=Math.min(count,candidates.length);
+  if(!target)return [];
+  const seeds=chooseSeedIndexes(matrix,candidates);
+  let globalBest=null,globalCost=Infinity,globalCash=-Infinity;
+
+  for(const seed of seeds){
+    let order=[seed];
+    const remaining=new Set(candidates.map((_,i)=>i+1).filter(i=>i!==seed));
+    while(order.length<target&&remaining.size){
+      let bestIdx=null,bestPos=order.length,bestDelta=Infinity,bestCash=-Infinity;
+      for(const idx of remaining){
+        const ins=bestInsertionForOrder(order,idx,matrix);
+        if(!Number.isFinite(ins.delta))continue;
+        const cash=Number(candidates[idx-1]?.cash)||0;
+        // Czas jest kryterium głównym. Przy różnicy <=30 s preferujemy wyższą gotówkę.
+        if(ins.delta<bestDelta-30 || (Math.abs(ins.delta-bestDelta)<=30 && cash>bestCash)){
+          bestIdx=idx;bestPos=ins.pos;bestDelta=ins.delta;bestCash=cash;
+        }
+      }
+      if(bestIdx===null)break;
+      order.splice(bestPos,0,bestIdx);
+      remaining.delete(bestIdx);
+    }
+    order=twoOptMatrixOrder(order,matrix);
+    const cost=matrixRouteCost(order,matrix);
+    const cashSum=order.reduce((sum,idx)=>sum+(Number(candidates[idx-1]?.cash)||0),0);
+    // Wybieramy krótszą trasę; przy różnicy do 60 s wygrywa większa suma gotówki.
+    if(cost<globalCost-60 || (Math.abs(cost-globalCost)<=60 && cashSum>globalCash)){
+      globalBest=order;globalCost=cost;globalCash=cashSum;
+    }
+  }
+  return globalBest||[];
+}
+
+function localInsertionDelta(route,item,start){
+  if(!route.length)return distance(start,item);
+  let best=Infinity;
+  for(let pos=0;pos<=route.length;pos++){
+    const prev=pos===0?start:route[pos-1];
+    const next=pos===route.length?null:route[pos];
+    if(!canNavigate(prev)||!canNavigate(item))continue;
+    let delta=distance(prev,item);
+    if(next&&canNavigate(next))delta+=distance(item,next)-distance(prev,next);
+    if(delta<best)best=delta;
+  }
+  return best;
+}
+
+function buildLocalEfficientRoute(items,start,count){
+  const target=Math.min(count,items.length);
+  if(!target)return [];
+  const sorted=[...items].sort((a,b)=>distance(start,a)-distance(start,b));
+  const seeds=sorted.length<=10?sorted:sorted.filter((_,i)=>i<5||i%Math.max(1,Math.floor(sorted.length/8))===0).slice(0,14);
+  let bestRoute=null,bestLen=Infinity,bestCash=-Infinity;
+  for(const seed of seeds){
+    const route=[seed];
+    const remaining=items.filter(x=>x!==seed);
+    while(route.length<target&&remaining.length){
+      let bi=0,bpos=route.length,bd=Infinity,bc=-Infinity;
+      remaining.forEach((x,i)=>{
+        let posBest=route.length,deltaBest=Infinity;
+        for(let pos=0;pos<=route.length;pos++){
+          const prev=pos===0?start:route[pos-1];
+          const next=pos===route.length?null:route[pos];
+          let d=distance(prev,x);
+          if(next)d+=distance(x,next)-distance(prev,next);
+          if(d<deltaBest){deltaBest=d;posBest=pos}
+        }
+        const cash=Number(x.cash)||0;
+        // 0,5 km tolerancji dla remisu - wtedy wybieramy wyższą kwotę.
+        if(deltaBest<bd-0.5 || (Math.abs(deltaBest-bd)<=0.5&&cash>bc)){bi=i;bpos=posBest;bd=deltaBest;bc=cash}
+      });
+      const [picked]=remaining.splice(bi,1);
+      route.splice(bpos,0,picked);
+    }
+    const improved=optimizeLocal(route,start);
+    const len=routeLength(improved,start);
+    const cash=improved.reduce((sum,x)=>sum+(Number(x.cash)||0),0);
+    if(len<bestLen-0.5 || (Math.abs(len-bestLen)<=0.5&&cash>bestCash)){bestRoute=improved;bestLen=len;bestCash=cash}
+  }
+  return bestRoute||optimizeLocal(items.slice(0,target),start);
+}
+
+function buildRoadCandidateShortlist(items,start,count){
+  if(items.length<=ROAD_SELECTION_MAX_CANDIDATES)return [...items];
+  const geoTarget=Math.min(ROAD_SELECTION_MAX_CANDIDATES,Math.max(count+25,Math.ceil(count*1.5)));
+  const efficient=buildLocalEfficientRoute(items,start,geoTarget);
+  const seen=new Set(efficient.map(x=>x.id));
+  const shortlist=[...efficient];
+  // Zachowujemy też część wysokokwotowych urządzeń jako kandydatów, jeśli są blisko sensownej trasy drogowej.
+  const byCash=[...items].sort((a,b)=>(Number(b.cash)||0)-(Number(a.cash)||0));
+  for(const x of byCash){
+    if(shortlist.length>=ROAD_SELECTION_MAX_CANDIDATES)break;
+    if(!seen.has(x.id)){shortlist.push(x);seen.add(x.id)}
+  }
+  return shortlist;
+}
+
+async function fetchRoadTimeMatrix(points){
+  const coords=points.map(p=>`${Number(p.lng).toFixed(6)},${Number(p.lat).toFixed(6)}`).join(';');
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),ROAD_SELECTION_TIMEOUT_MS);
+  try{
+    const url=`https://router.project-osrm.org/table/v1/driving/${coords}?annotations=duration`;
+    const response=await fetch(url,{headers:{'Accept':'application/json'},signal:controller.signal});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    if(data.code!=='Ok'||!Array.isArray(data.durations))throw new Error(data.message||'Brak macierzy czasów przejazdu');
+    return data.durations;
+  }finally{clearTimeout(timer)}
+}
+
+async function selectEfficientMeters(eligible,start,count){
+  const valid=eligible.filter(canNavigate);
+  const invalid=eligible.filter(x=>!canNavigate(x));
+  const target=Math.min(count,valid.length);
+  if(!target)return {items:[],mode:'none',eligible:eligible.length,valid:0,invalid:invalid.length,candidates:0};
+  if(valid.length<=target){
+    const optimized=await optimizeByRoadTime(valid,start);
+    return {items:optimized.route.slice(0,target),mode:optimized.mode,eligible:eligible.length,valid:valid.length,invalid:invalid.length,candidates:valid.length};
+  }
+
+  const shortlist=buildRoadCandidateShortlist(valid,start,count);
+  try{
+    const matrix=await fetchRoadTimeMatrix([start,...shortlist]);
+    const order=buildEfficientOrderFromMatrix(matrix,shortlist,target);
+    if(order.length!==target)throw new Error('Nie udało się wybrać pełnej grupy na podstawie macierzy drogowej.');
+    return {
+      items:order.map(i=>shortlist[i-1]),mode:'roads-selection',eligible:eligible.length,valid:valid.length,invalid:invalid.length,candidates:shortlist.length
+    };
+  }catch(err){
+    console.warn('Wybór drogowy niedostępny, używam analizy GPS:',err);
+    const items=buildLocalEfficientRoute(valid,start,target);
+    return {items,mode:'gps-selection',eligible:eligible.length,valid:valid.length,invalid:invalid.length,candidates:valid.length};
+  }
+}
+
 function cloneForPlan(x, priority=0){return {...x,address:x.address||x.location||'Brak adresu',location:x.location||x.address||'Brak lokalizacji',status:'pending',seal:'',reason:'',notes:'',updatedAt:null,priority,collectedCash:null,qrRaw:'',qrScannedAt:null}}
-function preparePlan(){
+async function preparePlan(){
  if(!state.sourceRows.length){alert('Najpierw wczytaj plik lub dane przykładowe.');return}
  const count=Math.max(1,Math.min(50,num($('deviceCount').value)||35));
+ const threshold=Math.max(0,num($('cashThreshold')?.value));
  state.start={name:$('startName').value||'Punkt startowy',lat:num($('startLat').value),lng:num($('startLng').value)};
- state.plan=[...state.sourceRows]
-   .sort((a,b)=>(Number(b.cash)||0)-(Number(a.cash)||0))
-   .slice(0,count)
-   .map(x=>cloneForPlan(x,0));
- renderPlan(); showView('planView');
+ const eligible=[...state.sourceRows].filter(x=>(Number(x.cash)||0)>=threshold);
+ if(!eligible.length){
+   alert(`Brak parkomatów ze stanem gotówki co najmniej ${money2(threshold)}.`);
+   return;
+ }
+ const status=$('routeBuildStatus');
+ const btn=$('buildRouteBtn');
+ if(status)status.textContent=`Analizuję ${eligible.length} parkomatów powyżej progu ${money2(threshold)}…`;
+ btn.disabled=true; const oldText=btn.textContent; btn.textContent='Analizuję trasę…';
+ try{
+   const selection=await selectEfficientMeters(eligible,state.start,count);
+   if(!selection.items.length){
+     alert('Brak parkomatów powyżej progu z prawidłowymi współrzędnymi GPS.');
+     return;
+   }
+   state.plan=selection.items.map(x=>cloneForPlan(x,0));
+   const modeLabel=selection.mode==='roads-selection'||selection.mode==='roads'?'czas przejazdu po drogach (OSRM)':'odległość GPS – tryb awaryjny';
+   const totalCash=state.plan.reduce((sum,x)=>sum+(Number(x.cash)||0),0);
+   const summary=`Wybrano ${state.plan.length} z ${selection.eligible} urządzeń powyżej progu • kryterium: ${modeLabel} • kandydaci do analizy drogowej: ${selection.candidates} • suma szacowanej gotówki: ${money2(totalCash)}${selection.invalid?` • pominięto bez GPS: ${selection.invalid}`:''}.`;
+   if(status)status.textContent=summary;
+   if($('planOptimizeStatus'))$('planOptimizeStatus').textContent=summary;
+   if(state.plan.length<count){
+     alert(`Próg ${money2(threshold)} spełnia ${selection.eligible} parkomatów, ale tylko ${selection.valid} ma prawidłowe GPS. Przygotowano ${state.plan.length} urządzeń.`);
+   }
+   renderPlan(); showView('planView');
+ }catch(err){
+   console.error(err);
+   if(status)status.textContent='Nie udało się przygotować inteligentnej selekcji parkomatów.';
+   alert('Nie udało się przygotować listy: '+err.message);
+ }finally{
+   btn.disabled=false; btn.textContent=oldText;
+ }
 }
 $('buildRouteBtn').addEventListener('click',preparePlan);
 
@@ -287,7 +518,7 @@ $('planBackBtn')?.addEventListener('click',()=>showView('setupView'));
 $('planAddBtn')?.addEventListener('click',()=>{
  const raw=$('planAddSelect')?.value, idx=Number(raw);
  if(raw===''||!Number.isInteger(idx)||idx<0||!state.sourceRows[idx]){alert('Wybierz urządzenie do dodania.');return}
- if(state.plan.length>=40){alert('Plan może zawierać maksymalnie 40 urządzeń.');return}
+ if(state.plan.length>=50){alert('Plan może zawierać maksymalnie 50 urządzeń.');return}
  state.plan.push(cloneForPlan(state.sourceRows[idx],0)); renderPlan();
 });
 $('planOptimizeBtn')?.addEventListener('click',async()=>{
@@ -385,7 +616,7 @@ function openRemainingRoute(){
   const pending=state.route.filter(x=>x.status==='pending'&&canNavigate(x));
   if(!pending.length){alert('Brak pozostałych urządzeń ze współrzędnymi GPS.');return}
   if(isIOS()){
-    // Apple Maps bez klucza: otwieramy kolejny punkt; aplikacja CPG zachowuje pełną kolejkę 40 urządzeń.
+    // Apple Maps bez klucza: otwieramy kolejny punkt; aplikacja CPG zachowuje pełną kolejkę do 50 urządzeń.
     window.open(navigationUrl(pending[0]),'_blank','noopener,noreferrer');
     return;
   }

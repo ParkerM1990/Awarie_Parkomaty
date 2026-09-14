@@ -15,3 +15,5 @@ Współrzędne GPS oraz adres są uzupełniane po Terminal ID z terminals-data.j
 Do planu można wybrać do 50 parkomatów.
 
 UWAGA: pliku Terminal Balance z bieżącymi stanami gotówki nie należy publikować w publicznym repozytorium.
+
+NOWE: przed przygotowaniem listy można ustawić minimalny próg gotówki (domyślnie 1500 PLN). Do planu trafiają tylko parkomaty z Coin - Balance >= ustawionemu progowi.
