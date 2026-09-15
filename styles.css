@@ -349,3 +349,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--cpg-bonnie);box-shado
   .completed-report-amount{grid-column:2/4;display:flex;flex-direction:row;justify-content:space-between;align-items:center;padding-top:7px;border-top:1px dashed #e6ebee;text-align:left}
   .completed-report-seal{text-align:right}
 }
+
+/* Raport wykonania dostępny także po ponownym otwarciu linku konwojenta. */
+.route-report-banner{border:1px solid rgba(0,159,227,.24);background:linear-gradient(135deg,rgba(0,159,227,.08),rgba(30,117,186,.04));}
+.route-report-banner .primary{white-space:nowrap;min-width:190px;}
+@media(max-width:720px){.route-report-banner .primary{width:100%;min-width:0;}}
+
+
+/* Publikacja konwoju v10 — PIN i postęp w jednym, zawsze widocznym oknie */
+body.publish-modal-open{overflow:hidden}
+.publish-progress-modal.is-waiting .publish-spinner{display:none}
+.publish-progress-icon.is-waiting{background:#eef7fb;color:var(--cpg-french)}
+.publish-progress-icon.is-waiting::after{content:'PIN';font-size:16px;font-weight:900;letter-spacing:.08em}
+.publish-pin-panel{margin-top:18px;text-align:left}
+.publish-pin-panel label{display:block;margin:0 0 7px;font-size:12px;font-weight:800;color:var(--cpg-black);letter-spacing:.02em}
+.publish-pin-panel input{width:100%;box-sizing:border-box;height:48px;padding:0 14px;border:1px solid #cfdbe2;border-radius:13px;background:#fff;color:var(--cpg-black);font:700 18px/1 var(--font,Arial,sans-serif);letter-spacing:.08em;outline:none}
+.publish-pin-panel input:focus{border-color:var(--cpg-bonnie);box-shadow:0 0 0 4px rgba(0,159,227,.12)}
+.publish-pin-panel small{display:block;margin-top:7px;color:#78858e;font-size:11px;line-height:1.4}
+.publish-pin-actions{display:grid;grid-template-columns:1fr 1.25fr;gap:10px;margin-top:16px}
+.publish-pin-actions button{margin:0;min-height:44px}
+@media(max-width:420px){.publish-pin-actions{grid-template-columns:1fr}.publish-pin-actions .primary{order:-1}}

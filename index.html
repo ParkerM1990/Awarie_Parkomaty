@@ -204,6 +204,15 @@
         </div>
         <div id="cloudSyncBar" class="cloud-sync hidden"><span id="cloudSyncStatus">Zapis w chmurze aktywny</span></div>
 
+        <div id="routeReportBar" class="card workflow-banner route-report-banner hidden">
+          <div>
+            <span class="eyebrow">RAPORT KONWOJU</span>
+            <strong id="routeReportTitle">Raport jest dostępny</strong>
+            <small id="routeReportHint">Dane wykonania są zapisane. Raport można wygenerować ponownie niezależnie od tego, czy konwojent pobrał go wcześniej.</small>
+          </div>
+          <button id="downloadRouteReportBtn" class="primary">Pobierz raport Excel</button>
+        </div>
+
         <div class="route-top">
           <div>
             <span class="eyebrow">TRASA</span>
@@ -256,7 +265,7 @@
         <div class="route-tools">
           <button id="reoptimizeBtn" class="secondary">↻ Od mojej pozycji</button>
           <button id="fullRouteBtn" class="secondary">Nawigacja Google Maps (do 50)</button>
-          <button id="exportRoutePlanExcelBtn" class="secondary">Lista Excel</button>
+          <button id="exportRoutePlanExcelBtn" class="secondary">Plan konwoju Excel</button>
           <button id="editPlanBtn" class="secondary">Edytuj listę</button>
         </div>
         <div id="gpsStatus" class="status muted"></div>
@@ -382,6 +391,15 @@
         <span id="publishProgressTime">0 s</span>
       </div>
       <div id="publishProgressCode" class="publish-progress-code hidden"></div>
+      <div id="publishPinPanel" class="publish-pin-panel hidden">
+        <label for="publishPlannerPin">PIN planisty</label>
+        <input id="publishPlannerPin" type="password" inputmode="numeric" autocomplete="off" placeholder="Wpisz PIN" aria-label="PIN planisty" />
+        <small>PIN jest wymagany przy każdej publikacji i nie jest zapamiętywany.</small>
+        <div class="publish-pin-actions">
+          <button id="publishPinCancelBtn" class="secondary" type="button">Anuluj</button>
+          <button id="publishPinConfirmBtn" class="primary" type="button">Publikuj trasę</button>
+        </div>
+      </div>
       <button id="publishProgressCloseBtn" class="primary full hidden" type="button">Gotowe</button>
     </div>
   </div>

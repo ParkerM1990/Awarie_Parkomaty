@@ -783,6 +783,10 @@ $('finishBtn').onclick=()=>{renderFinish();showView('finishView')}; $('returnRou
 function renderFinish(){const done=state.route.filter(x=>x.status==='done').length,skip=state.route.filter(x=>x.status==='skip').length,pending=state.route.filter(x=>x.status==='pending').length; const actual=state.route.reduce((sum,x)=>sum+(x.status==='done'?(Number(x.collectedCash)||0):0),0); $('finishStats').innerHTML=`<div class="stat"><span>${state.route.length}</span><small>wybranych</small></div><div class="stat"><span>${done}</span><small>zainkasowano</small></div><div class="stat"><span>${money2(actual)}</span><small>wybrana gotówka</small></div><div class="stat"><span>${skip}</span><small>nie zainkasowano</small></div><div class="stat"><span>${pending}</span><small>bez statusu</small></div>`; const unfinished=state.route.filter(x=>x.status!=='done'); if($('finishTiming'))$('finishTiming').innerHTML=`<strong>Czas trasy</strong><br>Start: ${formatDateTime(state.routeMeta.startedAt)}<br>Stan na teraz: ${elapsedLabel(state.routeMeta.startedAt,null)}`; $('unfinishedList').innerHTML=unfinished.length?unfinished.map(x=>`<div class="compact-item"><span><strong>${escapeHtml(x.id)}</strong><br><small>${escapeHtml(x.location)}</small></span><span>${x.status==='skip'?escapeHtml(x.reason):'Brak statusu'}</span></div>`).join(''):'<div class="muted">Wszystkie urządzenia zostały zainkasowane.</div>'}
 
 function isCompletedConvoy(){return state.convoy?.status==='completed'||!!state.routeMeta?.finishedAt}
+function isExecutionReportReady(){
+  if(!Array.isArray(state.route)||!state.route.length||!state.routeMeta?.startedAt)return false;
+  return isCompletedConvoy()||state.route.every(x=>x.status&&x.status!=='pending');
+}
 function buildReportSnapshot(){
   const rows=(state.route||[]).map((x,i)=>({
     lp:i+1,
@@ -845,12 +849,18 @@ $('confirmFinishBtn').onclick=async()=>{
   renderCompletedReportView({cloudSaved});showView('reportView');
   if(btn){btn.disabled=false;btn.textContent=oldLabel;btn.removeAttribute('aria-busy')}
 };
-$('downloadPdfBtn').onclick=async()=>{
+async function downloadExecutionReport(){
+  if(!isExecutionReportReady()){
+    alert('Raport będzie dostępny po zapisaniu statusu wszystkich parkomatów albo po zakończeniu konwoju.');
+    return;
+  }
   if(!state.lastExcelBlob)await generateExcel();
   if(!state.lastExcelBlob)return;
   const date=state.convoy?.date||new Date().toISOString().slice(0,10);
   downloadBlob(state.lastExcelBlob,`CPG_Raport_konwoju_${date}.xlsx`);
-};
+}
+$('downloadPdfBtn').onclick=downloadExecutionReport;
+$('downloadRouteReportBtn')?.addEventListener('click',downloadExecutionReport);
 
 async function generateExcel(){
   if(!window.ExcelJS){alert('Nie udało się załadować modułu Excel. Sprawdź połączenie z internetem i spróbuj ponownie.');return}
@@ -916,6 +926,15 @@ function syncWorkflowUi(){
  if($('executorPlanDate'))$('executorPlanDate').textContent=state.convoy.date?`Konwój na ${state.convoy.date}`:'Plan konwoju';
  if($('executorPlanStatus'))$('executorPlanStatus').textContent=state.convoy.status==='in_progress'?'Konwój był już rozpoczęty. Możesz kontynuować.':'Plan opublikowany i gotowy do realizacji.';
  $('finishBtn')?.classList.toggle('hidden',!executor||!state.routeMeta?.startedAt||!!state.routeMeta?.finishedAt);
+ const reportReady=executor&&isExecutionReportReady();
+ $('routeReportBar')?.classList.toggle('hidden',!reportReady);
+ if(reportReady){
+   const finalized=isCompletedConvoy();
+   if($('routeReportTitle'))$('routeReportTitle').textContent=finalized?'Konwój zakończony — raport dostępny':'Wszystkie urządzenia zapisane — raport dostępny';
+   if($('routeReportHint'))$('routeReportHint').textContent=finalized
+     ?'Raport jest generowany z danych zapisanych w konwoju i można go pobierać wielokrotnie z tego linku.'
+     :'Wszystkie parkomaty mają zapisany status. Raport można pobrać już teraz; formalne zakończenie konwoju nadal zapisze czas zakończenia.';
+ }
  $('editPlanBtn')?.classList.toggle('hidden',!planner);
  $('reoptimizeBtn')?.classList.toggle('hidden',!executor||!state.routeMeta?.startedAt);
  $('nextStopCard')?.classList.toggle('workflow-locked',!executor||!state.routeMeta?.startedAt);
@@ -944,36 +963,81 @@ $('loadLatestBalanceBtn')?.addEventListener('click',loadLatestBalanceFromCloud);
 let publishConvoyInFlight=false;
 let publishProgressTimer=null;
 let publishProgressStartedAt=0;
+let publishPinResolver=null;
+
 function setPublishProgress({title,message,step=1,progress=10,stateName='loading',code=''}){
  const modal=$('publishProgressModal');if(!modal)return;
- modal.classList.remove('is-success','is-error');
+ modal.classList.remove('is-success','is-error','is-waiting');
  if(stateName==='success')modal.classList.add('is-success');
  if(stateName==='error')modal.classList.add('is-error');
+ if(stateName==='waiting')modal.classList.add('is-waiting');
  const icon=$('publishProgressIcon');
- if(icon){icon.classList.remove('is-loading','is-success','is-error');icon.classList.add(`is-${stateName}`)}
+ if(icon){icon.classList.remove('is-loading','is-success','is-error','is-waiting');icon.classList.add(`is-${stateName}`)}
  if(title)$('publishProgressTitle').textContent=title;
  if(message)$('publishProgressMessage').textContent=message;
- if($('publishProgressStep'))$('publishProgressStep').textContent=stateName==='loading'?`Krok ${step} z 3`:(stateName==='success'?'Publikacja zakończona':'Publikacja przerwana');
- if($('publishProgressBar'))$('publishProgressBar').style.width=`${Math.max(5,Math.min(100,progress))}%`;
+ if($('publishProgressStep'))$('publishProgressStep').textContent=stateName==='waiting'?'Autoryzacja planisty':(stateName==='loading'?`Krok ${step} z 3`:(stateName==='success'?'Publikacja zakończona':'Publikacja przerwana'));
+ if($('publishProgressBar'))$('publishProgressBar').style.width=stateName==='waiting'?'5%':`${Math.max(5,Math.min(100,progress))}%`;
  const codeBox=$('publishProgressCode');
  if(codeBox){codeBox.textContent=code?`Kod konwoju: ${code}`:'';codeBox.classList.toggle('hidden',!code)}
- $('publishProgressCloseBtn')?.classList.toggle('hidden',stateName==='loading');
+ $('publishProgressCloseBtn')?.classList.toggle('hidden',stateName==='loading'||stateName==='waiting');
 }
-function openPublishProgress(){
+
+function showPublishModal(){
  const modal=$('publishProgressModal');if(!modal)return;
  modal.classList.remove('hidden');modal.setAttribute('aria-hidden','false');
+ // Wymuszenie widoczności zabezpiecza przed starszą regułą .hidden z cache PWA.
+ modal.style.display='grid';
+ document.body.classList.add('publish-modal-open');
+}
+function hidePublishPinPanel(){
+ $('publishPinPanel')?.classList.add('hidden');
+}
+function showPublishPinPanel(){
+ $('publishPinPanel')?.classList.remove('hidden');
+}
+function requestPlannerPinForPublish(){
+ showPublishModal();
+ finishPublishProgressTimer();
+ showPublishPinPanel();
+ setPublishProgress({title:'Publikacja konwoju',message:'Podaj PIN planisty. Po zatwierdzeniu od razu pokażę postęp zapisywania trasy w Google.',step:1,progress:5,stateName:'waiting'});
+ if($('publishProgressTime'))$('publishProgressTime').textContent='oczekiwanie';
+ const input=$('publishPlannerPin');
+ if(input){input.value='';input.setAttribute('autocomplete','off');setTimeout(()=>input.focus(),50)}
+ return new Promise(resolve=>{publishPinResolver=resolve});
+}
+function resolvePublishPin(value){
+ if(!publishPinResolver)return;
+ const resolve=publishPinResolver;publishPinResolver=null;resolve(value);
+}
+function startPublishProgress(){
+ showPublishModal();hidePublishPinPanel();
  publishProgressStartedAt=Date.now();
  if(publishProgressTimer)clearInterval(publishProgressTimer);
  const tick=()=>{if($('publishProgressTime'))$('publishProgressTime').textContent=`${Math.max(0,Math.round((Date.now()-publishProgressStartedAt)/1000))} s`};
  tick();publishProgressTimer=setInterval(tick,500);
- setPublishProgress({title:'Publikuję trasę',message:'Przygotowuję dane konwoju…',step:1,progress:12,stateName:'loading'});
+ setPublishProgress({title:'Publikuję trasę',message:'Przygotowuję dane konwoju do zapisu…',step:1,progress:12,stateName:'loading'});
 }
 function finishPublishProgressTimer(){if(publishProgressTimer){clearInterval(publishProgressTimer);publishProgressTimer=null}}
 function closePublishProgress(){
  finishPublishProgressTimer();const modal=$('publishProgressModal');if(!modal)return;
- modal.classList.add('hidden');modal.setAttribute('aria-hidden','true');
+ if(publishPinResolver){resolvePublishPin(null)}
+ modal.classList.add('hidden');modal.setAttribute('aria-hidden','true');modal.style.display='none';
+ document.body.classList.remove('publish-modal-open');
+ hidePublishPinPanel();
 }
+function afterNextPaint(){return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))}
+
 $('publishProgressCloseBtn')?.addEventListener('click',closePublishProgress);
+$('publishPinCancelBtn')?.addEventListener('click',()=>resolvePublishPin(null));
+$('publishPinConfirmBtn')?.addEventListener('click',()=>{
+ const pin=($('publishPlannerPin')?.value||'').trim();
+ if(!pin){$('publishPlannerPin')?.focus();toast('Wpisz PIN planisty.');return}
+ resolvePublishPin(pin);
+});
+$('publishPlannerPin')?.addEventListener('keydown',e=>{
+ if(e.key==='Enter'){e.preventDefault();$('publishPinConfirmBtn')?.click()}
+ if(e.key==='Escape'){e.preventDefault();$('publishPinCancelBtn')?.click()}
+});
 
 async function publishConvoy(){
  if(publishConvoyInFlight)return;
@@ -983,20 +1047,26 @@ async function publishConvoy(){
    alert('Google Apps Script nie jest jeszcze skonfigurowany. Przygotowałem plik planu awaryjnego. Po wdrożeniu Code.gs wklej adres /exec do google-config.js.');
    return;
  }
- // PIN planisty jest wymagany przy KAZDEJ publikacji trasy.
- // Nie przechowujemy go w sessionStorage ani localStorage.
+ // Każda próba publikacji zaczyna się od dedykowanego okna z PIN-em.
+ // PIN nie jest przechowywany w sessionStorage ani localStorage.
  sessionStorage.removeItem('cpg-planner-pin');
- const pin=(prompt('Podaj PIN planisty do publikacji konwoju:')||'').trim();
- if(!pin)return;
  publishConvoyInFlight=true;
  const publishBtn=$('publishConvoyBtn');
  const originalPublishLabel=publishBtn?.textContent||'Opublikuj konwój';
- if(publishBtn){publishBtn.disabled=true;publishBtn.textContent='Publikowanie…';publishBtn.setAttribute('aria-busy','true')}
- openPublishProgress();
- const token=state.convoy.shareToken||window.CPG_GOOGLE.createToken();
- state.convoy.status='published';state.convoy.publishedAt=new Date().toISOString();state.convoy.updatedAt=state.convoy.publishedAt;state.convoy.cloudProvider='google';state.convoy.shareToken=token;state.convoy.cloudItemId=`google:${state.convoy.date}:${token}`;
- saveState();
+ if(publishBtn){publishBtn.disabled=true;publishBtn.textContent='Oczekiwanie na PIN…';publishBtn.setAttribute('aria-busy','true')}
+ let pin=null;
  try{
+   pin=await requestPlannerPinForPublish();
+   if(!pin){closePublishProgress();return}
+   if(publishBtn)publishBtn.textContent='Publikowanie…';
+   startPublishProgress();
+   // Pozwala przeglądarce narysować okno zanim rozpocznie się komunikacja z Google.
+   await afterNextPaint();
+
+   const token=state.convoy.shareToken||window.CPG_GOOGLE.createToken();
+   state.convoy.status='published';state.convoy.publishedAt=new Date().toISOString();state.convoy.updatedAt=state.convoy.publishedAt;state.convoy.cloudProvider='google';state.convoy.shareToken=token;state.convoy.cloudItemId=`google:${state.convoy.date}:${token}`;
+   saveState();
+
    setCloudSyncStatus('Publikuję plan w Google…');
    setPublishProgress({title:'Publikuję trasę',message:'Łączę się z Google i wysyłam plan konwoju…',step:2,progress:35,stateName:'loading'});
    await window.CPG_GOOGLE.publishConvoy(sessionPayload(),pin,token,(info)=>{
@@ -1015,7 +1085,8 @@ async function publishConvoy(){
    try{await navigator.clipboard.writeText(link);toast('Konwój opublikowany. Link skopiowano do schowka.')}catch{toast('Konwój opublikowany. Skopiuj link dla konwojenta.')}
  }catch(e){
    state.convoy.status='draft';state.convoy.cloudProvider=null;state.convoy.cloudItemId=null;
-   saveState();setCloudSyncStatus('Błąd publikacji');finishPublishProgressTimer();
+   saveState();setCloudSyncStatus('Błąd publikacji');finishPublishProgressTimer();hidePublishPinPanel();
+   showPublishModal();
    setPublishProgress({title:'Nie udało się opublikować',message:`Publikacja została przerwana: ${e.message}`,step:3,progress:100,stateName:'error'});
  }finally{
    publishConvoyInFlight=false;
