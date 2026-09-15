@@ -46,3 +46,6 @@ Logo CPG jest osadzone bezpośrednio w `index.html` jako obraz PNG (data URI), d
 ## Publikacja konwoju — ekran postępu
 
 Po podaniu PIN-u planisty aplikacja pokazuje pełnoekranowy status publikacji: wysyłanie planu, potwierdzanie zapisu w Google oraz wynik końcowy. Przycisk publikacji jest w tym czasie blokowany, aby uniknąć podwójnego wysłania.
+
+## Ponowne pobranie raportu zakończonego konwoju
+Po zakończeniu konwoju jego końcowy stan (lista parkomatów, numery plomb, faktycznie wybrane kwoty, statusy i czasy) jest zapisywany w Google. Ten sam link konwojenta może zostać otwarty później przez planistę lub inną uprawnioną osobę posiadającą link/kod. Jeżeli konwój ma status `completed`, aplikacja otwiera ekran zakończonego konwoju z podsumowaniem, listą parkomatów oraz przyciskiem ponownego wygenerowania i pobrania raportu Excel.
