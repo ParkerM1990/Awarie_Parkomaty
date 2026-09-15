@@ -9,7 +9,8 @@ const state = {
 
 const $ = id => document.getElementById(id);
 const views = ['homeView','convoyLoadView','setupView','planView','routeView','deviceView','finishView','reportView'];
-function showView(id){views.forEach(v=>$(v)?.classList.toggle('active',v===id)); window.scrollTo({top:0,behavior:'smooth'}); if(id==='routeView'){syncWorkflowUi();setTimeout(renderMap,80)}}
+function shouldShowPlannerMapPreview(){return state.mode==='planner'&&state.convoy?.status==='draft'&&!state.routeMeta?.startedAt&&!!state.route.length}
+function showView(id){views.forEach(v=>$(v)?.classList.toggle('active',v===id)); window.scrollTo({top:0,behavior:'smooth'}); if(id==='routeView')syncWorkflowUi()}
 function money(v){return new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN',maximumFractionDigits:0}).format(Number(v)||0)}
 function money2(v){return new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v)||0)}
 function num(v){if(v===null||v===undefined||v==='')return 0; if(typeof v==='number')return v; return Number(String(v).replace(/\s/g,'').replace('%','').replace(',','.').replace(/[^0-9.-]/g,''))||0}
@@ -602,7 +603,7 @@ async function reoptimizePendingFrom(position){
   if(!pending.length)return 'none';
   const optimized=await optimizeByRoadTime(pending,position);
   state.route=[...completed,...optimized.route];
-  state.currentPosition=position; state.routeMeta.optimizationMode=optimized.mode; renderRoute(); renderMap();
+  state.currentPosition=position; state.routeMeta.optimizationMode=optimized.mode; renderRoute(); if(shouldShowPlannerMapPreview())renderMap();
   return optimized.mode;
 }
 async function reoptimizeFromGps(){
@@ -668,6 +669,7 @@ async function drawRoadRoute(pts){
   }
 }
 function renderMap(){
+ if(!shouldShowPlannerMapPreview())return;
  if(!state.route.length)return;
  if(!state.map){state.map=L.map('map',{zoomControl:false}); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(state.map); L.control.zoom({position:'bottomright'}).addTo(state.map)}
  state.markers.forEach(m=>state.map.removeLayer(m)); state.markers=[];
@@ -848,6 +850,9 @@ function syncWorkflowUi(){
  $('editPlanBtn')?.classList.toggle('hidden',!planner);
  $('reoptimizeBtn')?.classList.toggle('hidden',!executor||!state.routeMeta?.startedAt);
  $('nextStopCard')?.classList.toggle('workflow-locked',!executor||!state.routeMeta?.startedAt);
+ const showPlannerMap=shouldShowPlannerMapPreview();
+ $('plannerMapPreview')?.classList.toggle('hidden',!showPlannerMap);
+ if(showPlannerMap&&$('routeView')?.classList.contains('active'))setTimeout(renderMap,80);
  if($('routeTitle'))$('routeTitle').textContent=planner?'Podgląd planu':'Konwój';
  const googleActive=state.convoy.cloudProvider==='google'&&!!state.convoy.shareToken&&window.CPG_GOOGLE?.isConfigured?.();
  const m365Active=state.convoy.cloudProvider==='m365'&&!!state.convoy.cloudItemId&&window.CPG_M365?.isConfigured?.();

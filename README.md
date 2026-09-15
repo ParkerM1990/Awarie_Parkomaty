@@ -31,3 +31,10 @@ Interfejs został dostosowany do Brandbooka City Parking Group 2025: oryginalne 
 
 ## Poprawka logo
 Logo CPG jest osadzone bezpośrednio w `index.html` jako obraz PNG (data URI), dzięki czemu nie zależy od katalogu `assets` i ładuje się także przy prostym hostingu statycznym.
+
+
+## Zmiana widoku mapy — 15.09.2026
+- Konwojent nie widzi mapy z zaznaczoną trasą w aplikacji.
+- Pozostają przyciski nawigacyjne i odnośniki do Google Maps / Apple Maps.
+- Mapa podglądu jest dostępna wyłącznie planiscie przed opublikowaniem konwoju.
+- Po skutecznej publikacji mapa jest ukrywana również w widoku planisty.
