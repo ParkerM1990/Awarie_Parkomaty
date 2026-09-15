@@ -59,19 +59,27 @@
     return r;
   }
 
-  async function publishConvoy(payload, plannerPin, token = createToken()) {
+  async function publishConvoy(payload, plannerPin, token = createToken(), onProgress = null) {
     const date = payload?.convoy?.date;
     if (!date) throw new Error('Brak daty konwoju.');
     if (!plannerPin) throw new Error('Podaj PIN planisty.');
+    const progress = (stage, extra = {}) => {
+      try { onProgress?.({ stage, ...extra }); } catch {}
+    };
+    progress('sending');
     await postNoCors('publish', { date, token, plannerPin, payload });
+    progress('sent');
     let lastError = null;
     for (let i = 0; i < 5; i++) {
+      progress('verifying', { attempt: i + 1, total: 5 });
       await sleep(700 + i * 500);
       try {
         const meta = await getMeta(date, token);
+        progress('verified', { attempt: i + 1, total: 5 });
         return { token, meta };
       } catch (e) { lastError = e; }
     }
+    progress('failed');
     throw lastError || new Error('Nie udało się potwierdzić publikacji w Google.');
   }
 

@@ -872,7 +872,42 @@ async function loadLatestBalanceFromCloud(){
 }
 $('loadLatestBalanceBtn')?.addEventListener('click',loadLatestBalanceFromCloud);
 
+let publishConvoyInFlight=false;
+let publishProgressTimer=null;
+let publishProgressStartedAt=0;
+function setPublishProgress({title,message,step=1,progress=10,stateName='loading',code=''}){
+ const modal=$('publishProgressModal');if(!modal)return;
+ modal.classList.remove('is-success','is-error');
+ if(stateName==='success')modal.classList.add('is-success');
+ if(stateName==='error')modal.classList.add('is-error');
+ const icon=$('publishProgressIcon');
+ if(icon){icon.classList.remove('is-loading','is-success','is-error');icon.classList.add(`is-${stateName}`)}
+ if(title)$('publishProgressTitle').textContent=title;
+ if(message)$('publishProgressMessage').textContent=message;
+ if($('publishProgressStep'))$('publishProgressStep').textContent=stateName==='loading'?`Krok ${step} z 3`:(stateName==='success'?'Publikacja zakończona':'Publikacja przerwana');
+ if($('publishProgressBar'))$('publishProgressBar').style.width=`${Math.max(5,Math.min(100,progress))}%`;
+ const codeBox=$('publishProgressCode');
+ if(codeBox){codeBox.textContent=code?`Kod konwoju: ${code}`:'';codeBox.classList.toggle('hidden',!code)}
+ $('publishProgressCloseBtn')?.classList.toggle('hidden',stateName==='loading');
+}
+function openPublishProgress(){
+ const modal=$('publishProgressModal');if(!modal)return;
+ modal.classList.remove('hidden');modal.setAttribute('aria-hidden','false');
+ publishProgressStartedAt=Date.now();
+ if(publishProgressTimer)clearInterval(publishProgressTimer);
+ const tick=()=>{if($('publishProgressTime'))$('publishProgressTime').textContent=`${Math.max(0,Math.round((Date.now()-publishProgressStartedAt)/1000))} s`};
+ tick();publishProgressTimer=setInterval(tick,500);
+ setPublishProgress({title:'Publikuję trasę',message:'Przygotowuję dane konwoju…',step:1,progress:12,stateName:'loading'});
+}
+function finishPublishProgressTimer(){if(publishProgressTimer){clearInterval(publishProgressTimer);publishProgressTimer=null}}
+function closePublishProgress(){
+ finishPublishProgressTimer();const modal=$('publishProgressModal');if(!modal)return;
+ modal.classList.add('hidden');modal.setAttribute('aria-hidden','true');
+}
+$('publishProgressCloseBtn')?.addEventListener('click',closePublishProgress);
+
 async function publishConvoy(){
+ if(publishConvoyInFlight)return;
  if(!state.route.length||!state.convoy.date){alert('Najpierw przygotuj i wyznacz trasę.');return}
  if(!window.CPG_GOOGLE?.isConfigured?.()){
    exportSession();
@@ -884,18 +919,38 @@ async function publishConvoy(){
  sessionStorage.removeItem('cpg-planner-pin');
  const pin=(prompt('Podaj PIN planisty do publikacji konwoju:')||'').trim();
  if(!pin)return;
+ publishConvoyInFlight=true;
+ const publishBtn=$('publishConvoyBtn');
+ const originalPublishLabel=publishBtn?.textContent||'Opublikuj konwój';
+ if(publishBtn){publishBtn.disabled=true;publishBtn.textContent='Publikowanie…';publishBtn.setAttribute('aria-busy','true')}
+ openPublishProgress();
  const token=state.convoy.shareToken||window.CPG_GOOGLE.createToken();
  state.convoy.status='published';state.convoy.publishedAt=new Date().toISOString();state.convoy.updatedAt=state.convoy.publishedAt;state.convoy.cloudProvider='google';state.convoy.shareToken=token;state.convoy.cloudItemId=`google:${state.convoy.date}:${token}`;
  saveState();
  try{
    setCloudSyncStatus('Publikuję plan w Google…');
-   await window.CPG_GOOGLE.publishConvoy(sessionPayload(),pin,token);
+   setPublishProgress({title:'Publikuję trasę',message:'Łączę się z Google i wysyłam plan konwoju…',step:2,progress:35,stateName:'loading'});
+   await window.CPG_GOOGLE.publishConvoy(sessionPayload(),pin,token,(info)=>{
+     if(info?.stage==='sending')setPublishProgress({title:'Wysyłam plan',message:'Przesyłam trasę i dane konwoju do Google Drive…',step:2,progress:42,stateName:'loading'});
+     if(info?.stage==='sent')setPublishProgress({title:'Plan wysłany',message:'Dane zostały wysłane. Teraz sprawdzam, czy zapis jest już dostępny…',step:3,progress:66,stateName:'loading'});
+     if(info?.stage==='verifying'){
+       const pct=68+Math.min(25,Number(info.attempt||1)*5);
+       setPublishProgress({title:'Potwierdzam publikację',message:`Sprawdzam zapis w Google — próba ${info.attempt||1} z ${info.total||5}.`,step:3,progress:pct,stateName:'loading'});
+     }
+     if(info?.stage==='verified')setPublishProgress({title:'Publikacja potwierdzona',message:'Google potwierdził zapis planu konwoju.',step:3,progress:96,stateName:'loading'});
+   });
    setCloudSyncStatus('Plan opublikowany w Google.');syncWorkflowUi();
+   finishPublishProgressTimer();
+   setPublishProgress({title:'Trasa opublikowana',message:'Plan został zapisany w Google i jest gotowy do przekazania konwojentowi.',step:3,progress:100,stateName:'success',code:token});
    const link=convoyShareUrl();
    try{await navigator.clipboard.writeText(link);toast('Konwój opublikowany. Link skopiowano do schowka.')}catch{toast('Konwój opublikowany. Skopiuj link dla konwojenta.')}
  }catch(e){
    state.convoy.status='draft';state.convoy.cloudProvider=null;state.convoy.cloudItemId=null;
-   saveState();setCloudSyncStatus('Błąd publikacji');alert('Nie udało się opublikować planu: '+e.message);
+   saveState();setCloudSyncStatus('Błąd publikacji');finishPublishProgressTimer();
+   setPublishProgress({title:'Nie udało się opublikować',message:`Publikacja została przerwana: ${e.message}`,step:3,progress:100,stateName:'error'});
+ }finally{
+   publishConvoyInFlight=false;
+   if(publishBtn){publishBtn.disabled=false;publishBtn.textContent=originalPublishLabel;publishBtn.removeAttribute('aria-busy')}
  }
 }
 $('publishConvoyBtn')?.addEventListener('click',publishConvoy);

@@ -358,6 +358,27 @@
     </main>
   </div>
 
+  <div id="publishProgressModal" class="publish-progress-modal hidden" aria-hidden="true" aria-live="polite">
+    <div class="publish-progress-card" role="dialog" aria-modal="true" aria-labelledby="publishProgressTitle">
+      <div id="publishProgressIcon" class="publish-progress-icon is-loading" aria-hidden="true">
+        <span class="publish-spinner"></span>
+        <span class="publish-result-icon">✓</span>
+      </div>
+      <div class="publish-progress-copy">
+        <span class="eyebrow">PUBLIKACJA KONWOJU</span>
+        <h2 id="publishProgressTitle">Publikuję trasę</h2>
+        <p id="publishProgressMessage">Przygotowuję dane do wysłania…</p>
+      </div>
+      <div class="publish-progress-track" aria-hidden="true"><span id="publishProgressBar"></span></div>
+      <div class="publish-progress-meta">
+        <span id="publishProgressStep">Krok 1 z 3</span>
+        <span id="publishProgressTime">0 s</span>
+      </div>
+      <div id="publishProgressCode" class="publish-progress-code hidden"></div>
+      <button id="publishProgressCloseBtn" class="primary full hidden" type="button">Gotowe</button>
+    </div>
+  </div>
+
   <div id="qrModal" class="qr-modal hidden" aria-hidden="true">
     <div class="qr-modal-card">
       <div class="qr-modal-head">

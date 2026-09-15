@@ -41,3 +41,8 @@ Logo CPG jest osadzone bezpośrednio w `index.html` jako obraz PNG (data URI), d
 
 
 - **Bezpieczeństwo publikacji:** planista podaje PIN przy każdej próbie publikacji trasy; PIN nie jest zapamiętywany w przeglądarce.
+
+
+## Publikacja konwoju — ekran postępu
+
+Po podaniu PIN-u planisty aplikacja pokazuje pełnoekranowy status publikacji: wysyłanie planu, potwierdzanie zapisu w Google oraz wynik końcowy. Przycisk publikacji jest w tym czasie blokowany, aby uniknąć podwójnego wysłania.
