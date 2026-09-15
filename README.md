@@ -27,3 +27,7 @@ Po zapisaniu pierwszego obsłużonego parkomatu aplikacja zapamiętuje faktyczni
 ## Warstwa wizualna CPG
 
 Interfejs został dostosowany do Brandbooka City Parking Group 2025: oryginalne logo CPG, kolory Bonnie blue `#009FE3`, French blue `#1E75BA`, Pirate black `#333333`, Gunmetal `#5C5C5C`, Bright smoke `#E6EBEE` i biel. Typografia odwołuje się do rodziny Metropolis z bezpiecznymi fallbackami systemowymi.
+
+
+## Poprawka logo
+Logo CPG jest osadzone bezpośrednio w `index.html` jako obraz PNG (data URI), dzięki czemu nie zależy od katalogu `assets` i ładuje się także przy prostym hostingu statycznym.
