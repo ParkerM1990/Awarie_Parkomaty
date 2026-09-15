@@ -49,3 +49,7 @@ Po podaniu PIN-u planisty aplikacja pokazuje pełnoekranowy status publikacji: w
 
 ## Ponowne pobranie raportu zakończonego konwoju
 Po zakończeniu konwoju jego końcowy stan (lista parkomatów, numery plomb, faktycznie wybrane kwoty, statusy i czasy) jest zapisywany w Google. Ten sam link konwojenta może zostać otwarty później przez planistę lub inną uprawnioną osobę posiadającą link/kod. Jeżeli konwój ma status `completed`, aplikacja otwiera ekran zakończonego konwoju z podsumowaniem, listą parkomatów oraz przyciskiem ponownego wygenerowania i pobrania raportu Excel.
+
+
+## Raport po zakończeniu konwoju
+Zakończenie konwoju zapisuje dane raportowe w stanie konwoju niezależnie od pobrania pliku Excel. Konwojent nie musi pobierać raportu. Po ponownym otwarciu linku zakończonego konwoju każda osoba posiadająca link/kod może wygenerować raport Excel z zapisanych danych (parkomat, adres, numer plomby, faktycznie wybrana gotówka).

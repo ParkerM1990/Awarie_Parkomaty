@@ -1,7 +1,7 @@
 const state = {
   sourceRows: [], plan: [], route: [], currentIndex: null, map: null, markers: [], lastExcelBlob: null,
   currentPosition: null, filter:'all', search:'', history:[], routeMeta:{startedAt:null,finishedAt:null},
-  mode:null, sourceMeta:null, cloudSyncTimer:null, suppressCloudSync:false,
+  mode:null, sourceMeta:null, cloudSyncTimer:null, suppressCloudSync:false, reportSnapshot:null,
   sealSequence:{lastUsed:null,nextSuggested:null,lastIndex:null},
   convoy:{id:null,date:null,status:'draft',createdAt:null,publishedAt:null,updatedAt:null,cloudProvider:null,cloudItemId:null,cloudETag:null,shareToken:null},
   start: {name:'Baza CPG — Komitetu Obrony Robotników 48, Warszawa', lat:52.183869, lng:20.966869}
@@ -533,7 +533,7 @@ $('planOptimizeBtn')?.addEventListener('click',async()=>{
    btn.disabled=true; btn.textContent='Optymalizuję trasę po drogach…'; if(status)status.textContent='Pobieram czasy przejazdu po ulicach i układam kolejność przejazdu…';
    const optimized=await optimizeByRoadTime(state.plan.map(x=>({...x})),state.start);
    state.route=optimized.route.map(x=>({...x,address:x.address||x.location||'Brak adresu'}));
-   state.routeMeta={startedAt:null,finishedAt:null,plannedAt:new Date().toISOString(),optimizationMode:optimized.mode}; state.history=[]; state.sealSequence={lastUsed:null,nextSuggested:null,lastIndex:null}; state.convoy.status='draft'; state.convoy.updatedAt=new Date().toISOString();
+   state.routeMeta={startedAt:null,finishedAt:null,plannedAt:new Date().toISOString(),optimizationMode:optimized.mode}; state.history=[]; state.reportSnapshot=null; state.sealSequence={lastUsed:null,nextSuggested:null,lastIndex:null}; state.convoy.status='draft'; state.convoy.updatedAt=new Date().toISOString();
    if(status)status.textContent=optimized.mode==='roads'?'Kolejność została zoptymalizowana według czasu przejazdu po drogach.':'Serwer drogowy był niedostępny — użyto awaryjnej optymalizacji GPS.';
    saveState(); renderRoute(); showView('routeView');
  }finally{btn.disabled=false;btn.textContent='Zatwierdź listę i wyznacz trasę'}
@@ -546,7 +546,7 @@ $('editPlanBtn')?.addEventListener('click',()=>{
 
 function saveState(){localStorage.setItem('cpg-inkasacja-state',JSON.stringify({plan:state.plan,route:state.route,start:state.start,routeMeta:state.routeMeta,history:state.history,mode:state.mode,convoy:state.convoy,sourceMeta:state.sourceMeta,sealSequence:state.sealSequence})); if(!state.suppressCloudSync)scheduleCloudSave()}
 function clearState(){localStorage.removeItem('cpg-inkasacja-state')}
-function restoreState(){try{const x=JSON.parse(localStorage.getItem('cpg-inkasacja-state'));if(x?.route?.length){state.plan=(x.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r}));state.route=x.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r}));state.start=x.start||state.start;state.routeMeta=x.routeMeta||{startedAt:null,finishedAt:null};state.history=x.history||[];state.mode=x.mode||null;state.convoy={...state.convoy,...(x.convoy||{})};state.sourceMeta=x.sourceMeta||null;state.sealSequence={...state.sealSequence,...(x.sealSequence||{})};}}catch{}}
+function restoreState(){try{const x=JSON.parse(localStorage.getItem('cpg-inkasacja-state'));if(x?.route?.length){state.plan=(x.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r}));state.route=x.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r}));state.start=x.start||state.start;state.routeMeta=x.routeMeta||{startedAt:null,finishedAt:null};state.history=x.history||[];state.mode=x.mode||null;state.convoy={...state.convoy,...(x.convoy||{})};state.sourceMeta=x.sourceMeta||null;state.reportSnapshot=x.reportSnapshot||null;state.sealSequence={...state.sealSequence,...(x.sealSequence||{})};}}catch{}}
 
 function renderRoute(){syncWorkflowUi();
  const done=state.route.filter(x=>x.status==='done').length, skipped=state.route.filter(x=>x.status==='skip').length;
@@ -783,35 +783,67 @@ $('finishBtn').onclick=()=>{renderFinish();showView('finishView')}; $('returnRou
 function renderFinish(){const done=state.route.filter(x=>x.status==='done').length,skip=state.route.filter(x=>x.status==='skip').length,pending=state.route.filter(x=>x.status==='pending').length; const actual=state.route.reduce((sum,x)=>sum+(x.status==='done'?(Number(x.collectedCash)||0):0),0); $('finishStats').innerHTML=`<div class="stat"><span>${state.route.length}</span><small>wybranych</small></div><div class="stat"><span>${done}</span><small>zainkasowano</small></div><div class="stat"><span>${money2(actual)}</span><small>wybrana gotówka</small></div><div class="stat"><span>${skip}</span><small>nie zainkasowano</small></div><div class="stat"><span>${pending}</span><small>bez statusu</small></div>`; const unfinished=state.route.filter(x=>x.status!=='done'); if($('finishTiming'))$('finishTiming').innerHTML=`<strong>Czas trasy</strong><br>Start: ${formatDateTime(state.routeMeta.startedAt)}<br>Stan na teraz: ${elapsedLabel(state.routeMeta.startedAt,null)}`; $('unfinishedList').innerHTML=unfinished.length?unfinished.map(x=>`<div class="compact-item"><span><strong>${escapeHtml(x.id)}</strong><br><small>${escapeHtml(x.location)}</small></span><span>${x.status==='skip'?escapeHtml(x.reason):'Brak statusu'}</span></div>`).join(''):'<div class="muted">Wszystkie urządzenia zostały zainkasowane.</div>'}
 
 function isCompletedConvoy(){return state.convoy?.status==='completed'||!!state.routeMeta?.finishedAt}
+function buildReportSnapshot(){
+  const rows=(state.route||[]).map((x,i)=>({
+    lp:i+1,
+    id:String(x.id??''),
+    address:String(x.address||x.location||''),
+    seal:x.status==='done'?String(x.seal||''):'',
+    actual:x.status==='done'&&x.collectedCash!==null&&x.collectedCash!==undefined?(Number(x.collectedCash)||0):null,
+    status:x.status||'pending',
+    reason:x.reason||''
+  }));
+  return {
+    version:1,
+    createdAt:new Date().toISOString(),
+    convoyDate:state.convoy?.date||null,
+    startedAt:state.routeMeta?.startedAt||null,
+    finishedAt:state.routeMeta?.finishedAt||null,
+    rows,
+    totals:{
+      all:rows.length,
+      done:rows.filter(x=>x.status==='done').length,
+      skip:rows.filter(x=>x.status==='skip').length,
+      pending:rows.filter(x=>x.status==='pending').length,
+      actual:rows.reduce((sum,x)=>sum+(x.status==='done'?(Number(x.actual)||0):0),0)
+    }
+  };
+}
+function reportRows(){return Array.isArray(state.reportSnapshot?.rows)&&state.reportSnapshot.rows.length?state.reportSnapshot.rows:(state.route||[]).map((x,i)=>({lp:i+1,id:x.id,address:x.address||x.location||'',seal:x.status==='done'?(x.seal||''):'',actual:x.status==='done'&&x.collectedCash!==null&&x.collectedCash!==undefined?(Number(x.collectedCash)||0):null,status:x.status||'pending',reason:x.reason||''}))}
 function renderCompletedReportView(options={}){
-  const done=state.route.filter(x=>x.status==='done').length;
-  const skip=state.route.filter(x=>x.status==='skip').length;
-  const pending=state.route.filter(x=>x.status==='pending').length;
-  const actual=state.route.reduce((sum,x)=>sum+(x.status==='done'?(Number(x.collectedCash)||0):0),0);
-  const date=state.convoy?.date||'—';
+  const rows=reportRows();
+  const done=rows.filter(x=>x.status==='done').length;
+  const skip=rows.filter(x=>x.status==='skip').length;
+  const pending=rows.filter(x=>x.status==='pending').length;
+  const actual=rows.reduce((sum,x)=>sum+(x.status==='done'?(Number(x.actual)||0):0),0);
+  const date=state.reportSnapshot?.convoyDate||state.convoy?.date||'—';
   if($('reportTitle'))$('reportTitle').textContent=options.reopened?'Zakończony konwój':'Raport gotowy';
   if($('reportSummary'))$('reportSummary').textContent=`Konwój ${date}. Parkomatów: ${state.route.length}. Zainkasowano ${done}, pominięto ${skip}, bez statusu ${pending}. Faktycznie wybrano ${money2(actual)}.`;
-  if($('completedReportMeta'))$('completedReportMeta').innerHTML=`<div><small>Data konwoju</small><strong>${escapeHtml(date)}</strong></div><div><small>Start</small><strong>${escapeHtml(formatDateTime(state.routeMeta?.startedAt))}</strong></div><div><small>Zakończenie</small><strong>${escapeHtml(formatDateTime(state.routeMeta?.finishedAt))}</strong></div><div><small>Czas</small><strong>${escapeHtml(elapsedLabel(state.routeMeta?.startedAt,state.routeMeta?.finishedAt))}</strong></div>`;
+  if($('completedReportMeta')){const rs=state.reportSnapshot;const started=rs?.startedAt||state.routeMeta?.startedAt;const finished=rs?.finishedAt||state.routeMeta?.finishedAt;$('completedReportMeta').innerHTML=`<div><small>Data konwoju</small><strong>${escapeHtml(date)}</strong></div><div><small>Start</small><strong>${escapeHtml(formatDateTime(started))}</strong></div><div><small>Zakończenie</small><strong>${escapeHtml(formatDateTime(finished))}</strong></div><div><small>Czas</small><strong>${escapeHtml(elapsedLabel(started,finished))}</strong></div>`;}
   if($('completedReportCloudNote')){
-    const note=options.cloudSaved===false?'Uwaga: nie udało się potwierdzić końcowego zapisu w chmurze. Raport działa na tym urządzeniu, ale przed zamknięciem strony sprawdź połączenie z internetem.':'Ten raport jest odtwarzany z zapisanego konwoju. Ten sam link konwojenta można otworzyć ponownie i ponownie pobrać Excel.';
+    const note=options.cloudSaved===false?'Uwaga: nie udało się jeszcze potwierdzić końcowego zapisu w chmurze. Dane raportu są zapisane na tym urządzeniu i zostaną ponownie wysłane po odzyskaniu internetu.':'Raport jest tworzony na żądanie z danych zapisanego konwoju. Konwojent nie musi go wcześniej pobierać — każda osoba posiadająca link i kod konwoju może wygenerować go ponownie.';
     $('completedReportCloudNote').textContent=note;
     $('completedReportCloudNote').classList.toggle('warning',options.cloudSaved===false);
   }
+  $('downloadPdfBtn')?.classList.remove('hidden');
   if($('completedReportList')){
-    $('completedReportList').innerHTML=state.route.map((x,i)=>{
-      const amount=x.status==='done'&&x.collectedCash!==null&&x.collectedCash!==undefined?money2(Number(x.collectedCash)||0):'—';
+    $('completedReportList').innerHTML=rows.map((x,i)=>{
+      const amount=x.status==='done'&&x.actual!==null&&x.actual!==undefined?money2(Number(x.actual)||0):'—';
       const seal=x.status==='done'?(x.seal||'—'):'—';
       const status=x.status==='done'?'Zainkasowano':x.status==='skip'?'Pominięto':'Brak statusu';
-      return `<div class="completed-report-row"><span class="completed-report-lp">${i+1}</span><span class="completed-report-device"><strong>${escapeHtml(x.id)}</strong><small>${escapeHtml(x.address||x.location||'')}</small></span><span class="completed-report-seal"><small>Plomba</small><strong>${escapeHtml(seal)}</strong></span><span class="completed-report-amount"><small>${escapeHtml(status)}</small><strong>${escapeHtml(amount)}</strong></span></div>`;
+      return `<div class="completed-report-row"><span class="completed-report-lp">${i+1}</span><span class="completed-report-device"><strong>${escapeHtml(x.id)}</strong><small>${escapeHtml(x.address||'')}</small></span><span class="completed-report-seal"><small>Plomba</small><strong>${escapeHtml(seal)}</strong></span><span class="completed-report-amount"><small>${escapeHtml(status)}</small><strong>${escapeHtml(amount)}</strong></span></div>`;
     }).join('')||'<div class="muted">Brak urządzeń w konwoju.</div>';
   }
 }
 
 $('confirmFinishBtn').onclick=async()=>{
-  state.routeMeta.finishedAt=new Date().toISOString();state.convoy.status='completed';state.convoy.updatedAt=new Date().toISOString();state.lastExcelBlob=null;saveState();
+  const btn=$('confirmFinishBtn');const oldLabel=btn?.textContent||'Zakończ i zapisz konwój';
+  if(btn){btn.disabled=true;btn.textContent='Zapisuję zakończenie…';btn.setAttribute('aria-busy','true')}
+  state.routeMeta.finishedAt=new Date().toISOString();state.convoy.status='completed';state.convoy.updatedAt=new Date().toISOString();state.lastExcelBlob=null;state.reportSnapshot=buildReportSnapshot();saveState();
   let cloudSaved=true;
   try{await flushCloudSave({throwOnError:true})}catch(e){cloudSaved=false;console.error(e)}
-  await generateExcel();renderCompletedReportView({cloudSaved});showView('reportView');
+  renderCompletedReportView({cloudSaved});showView('reportView');
+  if(btn){btn.disabled=false;btn.textContent=oldLabel;btn.removeAttribute('aria-busy')}
 };
 $('downloadPdfBtn').onclick=async()=>{
   if(!state.lastExcelBlob)await generateExcel();
@@ -833,15 +865,16 @@ async function generateExcel(){
   ];
   const header=ws.getRow(1); header.height=30;
   header.eachCell(c=>{c.font={bold:true,color:{argb:'FFFFFFFF'}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF073B73'}};c.alignment={vertical:'middle',wrapText:true}});
-  state.route.forEach((x,i)=>{
-    const actualValue=x.status==='done' && x.collectedCash!==null && x.collectedCash!==undefined ? Number(x.collectedCash)||0 : null;
-    const row=ws.addRow({lp:i+1,id:x.id,location:x.address||x.location,seal:x.status==='done'?(x.seal||''):'',actual:actualValue});
+  const rows=reportRows();
+  rows.forEach((x,i)=>{
+    const actualValue=x.status==='done' && x.actual!==null && x.actual!==undefined ? Number(x.actual)||0 : null;
+    const row=ws.addRow({lp:i+1,id:x.id,location:x.address||'',seal:x.status==='done'?(x.seal||''):'',actual:actualValue});
     row.getCell('E').numFmt='#,##0.00 "zł";[Red](#,##0.00 "zł");-';
     row.eachCell(c=>{c.alignment={vertical:'top',wrapText:true}});
   });
   const totalRow=ws.addRow([]);
   totalRow.getCell('D').value='SUMA'; totalRow.getCell('D').font={bold:true};
-  totalRow.getCell('E').value={formula:`SUM(E2:E${state.route.length+1})`};
+  totalRow.getCell('E').value={formula:`SUM(E2:E${rows.length+1})`};
   totalRow.getCell('E').font={bold:true}; totalRow.getCell('E').numFmt='#,##0.00 "zł";[Red](#,##0.00 "zł");-';
   ['D','E'].forEach(c=>totalRow.getCell(c).border={top:{style:'thin',color:{argb:'FF073B73'}}});
   ws.autoFilter={from:'A1',to:'E1'};
@@ -849,7 +882,7 @@ async function generateExcel(){
 }
 
 function escapeHtml(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-function resetAll(){if(confirm('Wyczyścić dane lokalne na tym urządzeniu? Opublikowany plan w chmurze nie zostanie usunięty.')){state.plan=[];state.route=[];state.sourceRows=[];state.lastExcelBlob=null;state.mode=null;state.sourceMeta=null;state.sealSequence={lastUsed:null,nextSuggested:null,lastIndex:null};state.convoy={id:null,date:null,status:'draft',createdAt:null,publishedAt:null,updatedAt:null,cloudProvider:null,cloudItemId:null,cloudETag:null,shareToken:null};state.routeMeta={startedAt:null,finishedAt:null};clearState();if($('fileStatus'))$('fileStatus').textContent='Nie wczytano pliku.';showView('homeView')}}
+function resetAll(){if(confirm('Wyczyścić dane lokalne na tym urządzeniu? Opublikowany plan w chmurze nie zostanie usunięty.')){state.plan=[];state.route=[];state.sourceRows=[];state.lastExcelBlob=null;state.mode=null;state.sourceMeta=null;state.reportSnapshot=null;state.sealSequence={lastUsed:null,nextSuggested:null,lastIndex:null};state.convoy={id:null,date:null,status:'draft',createdAt:null,publishedAt:null,updatedAt:null,cloudProvider:null,cloudItemId:null,cloudETag:null,shareToken:null};state.routeMeta={startedAt:null,finishedAt:null};clearState();if($('fileStatus'))$('fileStatus').textContent='Nie wczytano pliku.';showView('homeView')}}
 $('resetBtn').onclick=resetAll; $('newRouteBtn').onclick=resetAll;
 
 
@@ -999,7 +1032,7 @@ async function loadConvoyPayload(data,cloudItem=null){
  try{
   const provider=cloudItem?.provider||data.convoy?.cloudProvider||null;
   const token=cloudItem?.token||data.convoy?.shareToken||null;
-  state.mode='executor';state.lastExcelBlob=null;state.plan=(data.plan||data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.route=(data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.start=data.start||state.start;state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null};state.history=data.history||[];state.convoy={...state.convoy,...(data.convoy||{}),cloudProvider:provider,shareToken:token,cloudItemId:provider==='google'?`google:${data.convoy?.date||''}:${token||''}`:(cloudItem?.id||data.convoy?.cloudItemId||null),cloudETag:cloudItem?.eTag||data.convoy?.cloudETag||null};state.sourceMeta=data.sourceMeta||null;state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null};if(!state.sealSequence.nextSuggested)rebuildSealSequence();if(state.routeMeta?.finishedAt)state.convoy.status='completed';saveState();renderRoute();if(isCompletedConvoy()){renderCompletedReportView({reopened:true});showView('reportView')}else showView('routeView');
+  state.mode='executor';state.lastExcelBlob=null;state.plan=(data.plan||data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.route=(data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.start=data.start||state.start;state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null};state.history=data.history||[];state.convoy={...state.convoy,...(data.convoy||{}),cloudProvider:provider,shareToken:token,cloudItemId:provider==='google'?`google:${data.convoy?.date||''}:${token||''}`:(cloudItem?.id||data.convoy?.cloudItemId||null),cloudETag:cloudItem?.eTag||data.convoy?.cloudETag||null};state.sourceMeta=data.sourceMeta||null;state.reportSnapshot=data.reportSnapshot||null;state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null};if(!state.sealSequence.nextSuggested)rebuildSealSequence();if(state.routeMeta?.finishedAt)state.convoy.status='completed';if(isCompletedConvoy()&&!state.reportSnapshot)state.reportSnapshot=buildReportSnapshot();saveState();renderRoute();if(isCompletedConvoy()){renderCompletedReportView({reopened:true});showView('reportView')}else showView('routeView');
  }finally{state.suppressCloudSync=false}
 }
 async function loadConvoyByDate(){
@@ -1068,12 +1101,13 @@ setDefaultDates();
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 restoreState();
 if(state.route.length&&!state.sealSequence.nextSuggested)rebuildSealSequence();
+if(isCompletedConvoy()&&!state.reportSnapshot)state.reportSnapshot=buildReportSnapshot();
 refreshGoogleUi();
 autoLoadSharedConvoyFromUrl();
 
 // --- OneDrive / Microsoft 365 pilot workflow ---
 function sessionPayload(){
-  return {schema:'cpg-inkasacja-v6', exportedAt:new Date().toISOString(), convoy:state.convoy, sourceMeta:state.sourceMeta, start:state.start, plan:state.plan, route:state.route, routeMeta:state.routeMeta, history:state.history, sealSequence:state.sealSequence};
+  return {schema:'cpg-inkasacja-v7', exportedAt:new Date().toISOString(), convoy:state.convoy, sourceMeta:state.sourceMeta, start:state.start, plan:state.plan, route:state.route, routeMeta:state.routeMeta, history:state.history, sealSequence:state.sealSequence, reportSnapshot:state.reportSnapshot};
 }
 function downloadBlob(blob, filename){
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500);
@@ -1087,8 +1121,8 @@ function exportSession(){
 async function importSessionFile(file){
   try{
     const data=JSON.parse(await file.text());
-    if(!['cpg-inkasacja-v1','cpg-inkasacja-v2','cpg-inkasacja-v3','cpg-inkasacja-v4','cpg-inkasacja-v5','cpg-inkasacja-v6'].includes(data.schema)||!Array.isArray(data.route)) throw new Error('Nieprawidłowy format pliku CPG Inkasacja.');
-    state.lastExcelBlob=null; state.plan=(data.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r})); state.route=data.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r})); state.start=data.start||state.start; state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null}; state.history=data.history||[]; state.convoy={...state.convoy,...(data.convoy||{})}; state.sourceMeta=data.sourceMeta||null; state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null}; if(!state.sealSequence.nextSuggested)rebuildSealSequence(); if(state.routeMeta?.finishedAt)state.convoy.status='completed'; state.mode='executor'; saveState(); renderRoute(); if(isCompletedConvoy()){renderCompletedReportView({reopened:true});showView('reportView')}else showView('routeView');
+    if(!['cpg-inkasacja-v1','cpg-inkasacja-v2','cpg-inkasacja-v3','cpg-inkasacja-v4','cpg-inkasacja-v5','cpg-inkasacja-v6','cpg-inkasacja-v7'].includes(data.schema)||!Array.isArray(data.route)) throw new Error('Nieprawidłowy format pliku CPG Inkasacja.');
+    state.lastExcelBlob=null; state.plan=(data.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r})); state.route=data.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r})); state.start=data.start||state.start; state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null}; state.history=data.history||[]; state.convoy={...state.convoy,...(data.convoy||{})}; state.sourceMeta=data.sourceMeta||null; state.reportSnapshot=data.reportSnapshot||null; state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null}; if(!state.sealSequence.nextSuggested)rebuildSealSequence(); if(state.routeMeta?.finishedAt)state.convoy.status='completed'; if(isCompletedConvoy()&&!state.reportSnapshot)state.reportSnapshot=buildReportSnapshot(); state.mode='executor'; saveState(); renderRoute(); if(isCompletedConvoy()){renderCompletedReportView({reopened:true});showView('reportView')}else showView('routeView');
   }catch(e){alert('Nie udało się wznowić trasy: '+e.message)}
 }
 $('exportSessionBtn')?.addEventListener('click',exportSession);
