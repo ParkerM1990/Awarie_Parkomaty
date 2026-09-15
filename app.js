@@ -680,7 +680,58 @@ function renderMap(){
  drawRoadRoute(pts);
 }
 
-function openDevice(i){if(state.mode==='planner'){toast('Planista może przeglądać trasę. Dane inkasa uzupełnia konwojent po rozpoczęciu konwoju.');return} if(!state.routeMeta.startedAt){toast('Najpierw rozpocznij konwój.');return} state.currentIndex=i; const x=state.route[i]; $('deviceIndex').textContent=`URZĄDZENIE ${i+1} Z ${state.route.length}`; $('deviceId').textContent=x.id; $('deviceLocation').textContent=x.address&&x.address!==x.location?`${x.location} • ${x.address}`:x.location; $('deviceCash').textContent=money(x.cash); $('sealNumber').value=x.seal||''; if($('collectedCash')) $('collectedCash').value=(x.collectedCash===null||x.collectedCash===undefined)?'':String(x.collectedCash).replace('.',','); $('notes').value=x.notes||''; $('skipReason').value=x.reason||'Brak możliwości dojazdu'; setChoice(x.status==='skip'?'skip':'done'); updateQrStatus(x); $('undoDeviceBtn')?.classList.toggle('hidden',!state.history.some(h=>h.index===i)); showView('deviceView')}
+function parseSealSequence(value){
+ const raw=String(value||'').trim();
+ const match=raw.match(/^(.*?)(\d+)$/);
+ if(!match)return null;
+ return {raw,prefix:match[1],digits:match[2]};
+}
+function incrementSealNumber(value){
+ const parsed=parseSealSequence(value);
+ if(!parsed)return null;
+ try{
+   const next=(BigInt(parsed.digits)+1n).toString().padStart(parsed.digits.length,'0');
+   return `${parsed.prefix}${next}`;
+ }catch{return null}
+}
+function latestUsedSeal(excludeIndex=-1){
+ const candidates=state.route.map((x,index)=>({x,index}))
+   .filter(({x,index})=>index!==excludeIndex&&x.status==='done'&&String(x.seal||'').trim()&&incrementSealNumber(x.seal));
+ if(!candidates.length)return null;
+ candidates.sort((a,b)=>{
+   const at=Date.parse(a.x.updatedAt||'')||0, bt=Date.parse(b.x.updatedAt||'')||0;
+   if(at!==bt)return bt-at;
+   return b.index-a.index;
+ });
+ return {seal:String(candidates[0].x.seal).trim(),index:candidates[0].index};
+}
+function suggestedSealFor(index){
+ const current=state.route[index];
+ if(!current||String(current.seal||'').trim())return null;
+ const previous=latestUsedSeal(index);
+ if(!previous)return null;
+ const next=incrementSealNumber(previous.seal);
+ return next?{value:next,previous:previous.seal,previousIndex:previous.index}:null;
+}
+function setSealFieldForDevice(index){
+ const x=state.route[index], input=$('sealNumber'), hint=$('sealAutoHint');
+ if(!x||!input)return;
+ if(String(x.seal||'').trim()){
+   input.value=String(x.seal).trim();
+   if(hint)hint.textContent='Zapisany numer plomby. Możesz go zmienić przed zapisaniem urządzenia.';
+   return;
+ }
+ const suggestion=suggestedSealFor(index);
+ if(suggestion){
+   input.value=suggestion.value;
+   if(hint)hint.textContent=`Automatycznie: ${suggestion.previous} → ${suggestion.value}. Numer możesz dowolnie zmienić.`;
+ }else{
+   input.value='';
+   if(hint)hint.textContent='Przy pierwszym urządzeniu wpisz numer plomby ręcznie, np. A12738. Kolejne numery będą zwiększane automatycznie o 1.';
+ }
+}
+
+function openDevice(i){if(state.mode==='planner'){toast('Planista może przeglądać trasę. Dane inkasa uzupełnia konwojent po rozpoczęciu konwoju.');return} if(!state.routeMeta.startedAt){toast('Najpierw rozpocznij konwój.');return} state.currentIndex=i; const x=state.route[i]; $('deviceIndex').textContent=`URZĄDZENIE ${i+1} Z ${state.route.length}`; $('deviceId').textContent=x.id; $('deviceLocation').textContent=x.address&&x.address!==x.location?`${x.location} • ${x.address}`:x.location; $('deviceCash').textContent=money(x.cash); setSealFieldForDevice(i); if($('collectedCash')) $('collectedCash').value=(x.collectedCash===null||x.collectedCash===undefined)?'':String(x.collectedCash).replace('.',','); $('notes').value=x.notes||''; $('skipReason').value=x.reason||'Brak możliwości dojazdu'; setChoice(x.status==='skip'?'skip':'done'); updateQrStatus(x); $('undoDeviceBtn')?.classList.toggle('hidden',!state.history.some(h=>h.index===i)); showView('deviceView')}
 function setChoice(choice){const skip=choice==='skip'; $('doneChoice').className='segment'+(!skip?' active':''); $('skipChoice').className='segment'+(skip?' skip-active':''); $('sealSection').classList.toggle('hidden',skip); $('skipSection').classList.toggle('hidden',!skip); $('deviceView').dataset.choice=choice}
 $('doneChoice').onclick=()=>setChoice('done'); $('skipChoice').onclick=()=>setChoice('skip'); $('backToRoute').onclick=()=>showView('routeView');
 function saveCurrentDevice(){
