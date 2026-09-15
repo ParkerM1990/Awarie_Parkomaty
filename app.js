@@ -879,8 +879,11 @@ async function publishConvoy(){
    alert('Google Apps Script nie jest jeszcze skonfigurowany. Przygotowałem plik planu awaryjnego. Po wdrożeniu Code.gs wklej adres /exec do google-config.js.');
    return;
  }
- let pin=sessionStorage.getItem('cpg-planner-pin')||'';
- if(!pin){pin=prompt('Podaj PIN planisty do publikacji konwoju:')||'';if(!pin)return;sessionStorage.setItem('cpg-planner-pin',pin)}
+ // PIN planisty jest wymagany przy KAZDEJ publikacji trasy.
+ // Nie przechowujemy go w sessionStorage ani localStorage.
+ sessionStorage.removeItem('cpg-planner-pin');
+ const pin=(prompt('Podaj PIN planisty do publikacji konwoju:')||'').trim();
+ if(!pin)return;
  const token=state.convoy.shareToken||window.CPG_GOOGLE.createToken();
  state.convoy.status='published';state.convoy.publishedAt=new Date().toISOString();state.convoy.updatedAt=state.convoy.publishedAt;state.convoy.cloudProvider='google';state.convoy.shareToken=token;state.convoy.cloudItemId=`google:${state.convoy.date}:${token}`;
  saveState();
@@ -892,7 +895,6 @@ async function publishConvoy(){
    try{await navigator.clipboard.writeText(link);toast('Konwój opublikowany. Link skopiowano do schowka.')}catch{toast('Konwój opublikowany. Skopiuj link dla konwojenta.')}
  }catch(e){
    state.convoy.status='draft';state.convoy.cloudProvider=null;state.convoy.cloudItemId=null;
-   if(/PIN/i.test(e.message||''))sessionStorage.removeItem('cpg-planner-pin');
    saveState();setCloudSyncStatus('Błąd publikacji');alert('Nie udało się opublikować planu: '+e.message);
  }
 }

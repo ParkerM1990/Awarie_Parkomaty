@@ -40,7 +40,7 @@ Plik `Code.gs` w tej paczce ma już wpisany ten Folder ID.
 4. Ustawia liczbę parkomatów i próg gotówki.
 5. Wyznacza i ewentualnie poprawia trasę.
 6. Naciska **Opublikuj konwój**.
-7. Przy pierwszej publikacji w danej sesji podaje `PLANNER_PIN`.
+7. Przy każdej próbie publikacji podaje `PLANNER_PIN` — aplikacja nie zapamiętuje go w przeglądarce.
 8. Aplikacja generuje losowy kod konwoju i publikuje plan w prywatnym folderze Google Drive.
 9. Aplikacja pokazuje i kopiuje link dla konwojenta.
 

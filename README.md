@@ -38,3 +38,6 @@ Logo CPG jest osadzone bezpośrednio w `index.html` jako obraz PNG (data URI), d
 - Pozostają przyciski nawigacyjne i odnośniki do Google Maps / Apple Maps.
 - Mapa podglądu jest dostępna wyłącznie planiscie przed opublikowaniem konwoju.
 - Po skutecznej publikacji mapa jest ukrywana również w widoku planisty.
+
+
+- **Bezpieczeństwo publikacji:** planista podaje PIN przy każdej próbie publikacji trasy; PIN nie jest zapamiętywany w przeglądarce.
