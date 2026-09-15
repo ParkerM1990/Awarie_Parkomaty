@@ -2,6 +2,7 @@ const state = {
   sourceRows: [], plan: [], route: [], currentIndex: null, map: null, markers: [], lastExcelBlob: null,
   currentPosition: null, filter:'all', search:'', history:[], routeMeta:{startedAt:null,finishedAt:null},
   mode:null, sourceMeta:null, cloudSyncTimer:null, suppressCloudSync:false,
+  sealSequence:{lastUsed:null,nextSuggested:null,lastIndex:null},
   convoy:{id:null,date:null,status:'draft',createdAt:null,publishedAt:null,updatedAt:null,cloudProvider:null,cloudItemId:null,cloudETag:null,shareToken:null},
   start: {name:'Baza CPG — Komitetu Obrony Robotników 48, Warszawa', lat:52.183869, lng:20.966869}
 };
@@ -531,7 +532,7 @@ $('planOptimizeBtn')?.addEventListener('click',async()=>{
    btn.disabled=true; btn.textContent='Optymalizuję trasę po drogach…'; if(status)status.textContent='Pobieram czasy przejazdu po ulicach i układam kolejność przejazdu…';
    const optimized=await optimizeByRoadTime(state.plan.map(x=>({...x})),state.start);
    state.route=optimized.route.map(x=>({...x,address:x.address||x.location||'Brak adresu'}));
-   state.routeMeta={startedAt:null,finishedAt:null,plannedAt:new Date().toISOString(),optimizationMode:optimized.mode}; state.history=[]; state.convoy.status='draft'; state.convoy.updatedAt=new Date().toISOString();
+   state.routeMeta={startedAt:null,finishedAt:null,plannedAt:new Date().toISOString(),optimizationMode:optimized.mode}; state.history=[]; state.sealSequence={lastUsed:null,nextSuggested:null,lastIndex:null}; state.convoy.status='draft'; state.convoy.updatedAt=new Date().toISOString();
    if(status)status.textContent=optimized.mode==='roads'?'Kolejność została zoptymalizowana według czasu przejazdu po drogach.':'Serwer drogowy był niedostępny — użyto awaryjnej optymalizacji GPS.';
    saveState(); renderRoute(); showView('routeView');
  }finally{btn.disabled=false;btn.textContent='Zatwierdź listę i wyznacz trasę'}
@@ -542,9 +543,9 @@ $('editPlanBtn')?.addEventListener('click',()=>{
  state.plan=state.route.map(x=>({...x,address:x.address||x.location||'Brak adresu'})); renderPlan(); showView('planView');
 });
 
-function saveState(){localStorage.setItem('cpg-inkasacja-state',JSON.stringify({plan:state.plan,route:state.route,start:state.start,routeMeta:state.routeMeta,history:state.history,mode:state.mode,convoy:state.convoy,sourceMeta:state.sourceMeta})); if(!state.suppressCloudSync)scheduleCloudSave()}
+function saveState(){localStorage.setItem('cpg-inkasacja-state',JSON.stringify({plan:state.plan,route:state.route,start:state.start,routeMeta:state.routeMeta,history:state.history,mode:state.mode,convoy:state.convoy,sourceMeta:state.sourceMeta,sealSequence:state.sealSequence})); if(!state.suppressCloudSync)scheduleCloudSave()}
 function clearState(){localStorage.removeItem('cpg-inkasacja-state')}
-function restoreState(){try{const x=JSON.parse(localStorage.getItem('cpg-inkasacja-state'));if(x?.route?.length){state.plan=(x.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r}));state.route=x.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r}));state.start=x.start||state.start;state.routeMeta=x.routeMeta||{startedAt:null,finishedAt:null};state.history=x.history||[];state.mode=x.mode||null;state.convoy={...state.convoy,...(x.convoy||{})};state.sourceMeta=x.sourceMeta||null;}}catch{}}
+function restoreState(){try{const x=JSON.parse(localStorage.getItem('cpg-inkasacja-state'));if(x?.route?.length){state.plan=(x.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r}));state.route=x.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r}));state.start=x.start||state.start;state.routeMeta=x.routeMeta||{startedAt:null,finishedAt:null};state.history=x.history||[];state.mode=x.mode||null;state.convoy={...state.convoy,...(x.convoy||{})};state.sourceMeta=x.sourceMeta||null;state.sealSequence={...state.sealSequence,...(x.sealSequence||{})};}}catch{}}
 
 function renderRoute(){syncWorkflowUi();
  const done=state.route.filter(x=>x.status==='done').length, skipped=state.route.filter(x=>x.status==='skip').length;
@@ -694,6 +695,19 @@ function incrementSealNumber(value){
    return `${parsed.prefix}${next}`;
  }catch{return null}
 }
+function rememberUsedSeal(value,index){
+ const seal=String(value||'').trim();
+ const next=incrementSealNumber(seal);
+ if(!seal||!next)return false;
+ state.sealSequence={lastUsed:seal,nextSuggested:next,lastIndex:Number.isInteger(index)?index:null};
+ return true;
+}
+function rebuildSealSequence(){
+ const previous=latestUsedSeal(-1);
+ if(previous&&rememberUsedSeal(previous.seal,previous.index))return state.sealSequence;
+ state.sealSequence={lastUsed:null,nextSuggested:null,lastIndex:null};
+ return state.sealSequence;
+}
 function latestUsedSeal(excludeIndex=-1){
  const candidates=state.route.map((x,index)=>({x,index}))
    .filter(({x,index})=>index!==excludeIndex&&x.status==='done'&&String(x.seal||'').trim()&&incrementSealNumber(x.seal));
@@ -708,9 +722,14 @@ function latestUsedSeal(excludeIndex=-1){
 function suggestedSealFor(index){
  const current=state.route[index];
  if(!current||String(current.seal||'').trim())return null;
+ const seq=state.sealSequence||{};
+ if(seq.lastUsed&&seq.nextSuggested){
+   return {value:String(seq.nextSuggested),previous:String(seq.lastUsed),previousIndex:seq.lastIndex};
+ }
  const previous=latestUsedSeal(index);
  if(!previous)return null;
  const next=incrementSealNumber(previous.seal);
+ if(next)state.sealSequence={lastUsed:previous.seal,nextSuggested:next,lastIndex:previous.index};
  return next?{value:next,previous:previous.seal,previousIndex:previous.index}:null;
 }
 function setSealFieldForDevice(index){
@@ -740,6 +759,7 @@ function saveCurrentDevice(){
  const collectedRaw=$('collectedCash')?.value?.trim()||''; const collected=num(collectedRaw); if(choice==='done'&&collectedRaw===''){alert('Zeskanuj kod QR z kwotą wybranej gotówki albo wpisz kwotę ręcznie.');return false} if(choice==='done'&&(!Number.isFinite(collected)||collected<0)){alert('Podaj poprawną kwotę wybranej gotówki.');return false}
  state.history.push({index:state.currentIndex, snapshot:{...x}, at:new Date().toISOString()}); if(state.history.length>50)state.history.shift();
  x.status=choice; x.seal=choice==='done'?$('sealNumber').value.trim():''; x.collectedCash=choice==='done'?collected:null; if(choice!=='done'){x.qrRaw='';x.qrScannedAt=null} x.reason=choice==='skip'?$('skipReason').value:''; x.notes=$('notes').value.trim(); x.updatedAt=new Date().toISOString();
+ if(choice==='done')rememberUsedSeal(x.seal,state.currentIndex);
  renderRoute(); return true;
 }
 $('saveDeviceBtn').onclick=()=>{if(saveCurrentDevice())showView('routeView')};
@@ -791,7 +811,7 @@ async function generateExcel(){
 }
 
 function escapeHtml(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-function resetAll(){if(confirm('Wyczyścić dane lokalne na tym urządzeniu? Opublikowany plan w chmurze nie zostanie usunięty.')){state.plan=[];state.route=[];state.sourceRows=[];state.lastExcelBlob=null;state.mode=null;state.sourceMeta=null;state.convoy={id:null,date:null,status:'draft',createdAt:null,publishedAt:null,updatedAt:null,cloudProvider:null,cloudItemId:null,cloudETag:null,shareToken:null};state.routeMeta={startedAt:null,finishedAt:null};clearState();if($('fileStatus'))$('fileStatus').textContent='Nie wczytano pliku.';showView('homeView')}}
+function resetAll(){if(confirm('Wyczyścić dane lokalne na tym urządzeniu? Opublikowany plan w chmurze nie zostanie usunięty.')){state.plan=[];state.route=[];state.sourceRows=[];state.lastExcelBlob=null;state.mode=null;state.sourceMeta=null;state.sealSequence={lastUsed:null,nextSuggested:null,lastIndex:null};state.convoy={id:null,date:null,status:'draft',createdAt:null,publishedAt:null,updatedAt:null,cloudProvider:null,cloudItemId:null,cloudETag:null,shareToken:null};state.routeMeta={startedAt:null,finishedAt:null};clearState();if($('fileStatus'))$('fileStatus').textContent='Nie wczytano pliku.';showView('homeView')}}
 $('resetBtn').onclick=resetAll; $('newRouteBtn').onclick=resetAll;
 
 
@@ -881,7 +901,7 @@ async function loadConvoyPayload(data,cloudItem=null){
  try{
   const provider=cloudItem?.provider||data.convoy?.cloudProvider||null;
   const token=cloudItem?.token||data.convoy?.shareToken||null;
-  state.mode='executor';state.plan=(data.plan||data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.route=(data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.start=data.start||state.start;state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null};state.history=data.history||[];state.convoy={...state.convoy,...(data.convoy||{}),cloudProvider:provider,shareToken:token,cloudItemId:provider==='google'?`google:${data.convoy?.date||''}:${token||''}`:(cloudItem?.id||data.convoy?.cloudItemId||null),cloudETag:cloudItem?.eTag||data.convoy?.cloudETag||null};state.sourceMeta=data.sourceMeta||null;saveState();renderRoute();showView('routeView');
+  state.mode='executor';state.plan=(data.plan||data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.route=(data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.start=data.start||state.start;state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null};state.history=data.history||[];state.convoy={...state.convoy,...(data.convoy||{}),cloudProvider:provider,shareToken:token,cloudItemId:provider==='google'?`google:${data.convoy?.date||''}:${token||''}`:(cloudItem?.id||data.convoy?.cloudItemId||null),cloudETag:cloudItem?.eTag||data.convoy?.cloudETag||null};state.sourceMeta=data.sourceMeta||null;state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null};if(!state.sealSequence.nextSuggested)rebuildSealSequence();saveState();renderRoute();showView('routeView');
  }finally{state.suppressCloudSync=false}
 }
 async function loadConvoyByDate(){
@@ -942,12 +962,13 @@ setDefaultDates();
 
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 restoreState();
+if(state.route.length&&!state.sealSequence.nextSuggested)rebuildSealSequence();
 refreshGoogleUi();
 autoLoadSharedConvoyFromUrl();
 
 // --- OneDrive / Microsoft 365 pilot workflow ---
 function sessionPayload(){
-  return {schema:'cpg-inkasacja-v5', exportedAt:new Date().toISOString(), convoy:state.convoy, sourceMeta:state.sourceMeta, start:state.start, plan:state.plan, route:state.route, routeMeta:state.routeMeta, history:state.history};
+  return {schema:'cpg-inkasacja-v6', exportedAt:new Date().toISOString(), convoy:state.convoy, sourceMeta:state.sourceMeta, start:state.start, plan:state.plan, route:state.route, routeMeta:state.routeMeta, history:state.history, sealSequence:state.sealSequence};
 }
 function downloadBlob(blob, filename){
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500);
@@ -961,8 +982,8 @@ function exportSession(){
 async function importSessionFile(file){
   try{
     const data=JSON.parse(await file.text());
-    if(!['cpg-inkasacja-v1','cpg-inkasacja-v2','cpg-inkasacja-v3','cpg-inkasacja-v4','cpg-inkasacja-v5'].includes(data.schema)||!Array.isArray(data.route)) throw new Error('Nieprawidłowy format pliku CPG Inkasacja.');
-    state.plan=(data.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r})); state.route=data.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r})); state.start=data.start||state.start; state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null}; state.history=data.history||[]; state.convoy={...state.convoy,...(data.convoy||{})}; state.sourceMeta=data.sourceMeta||null; state.mode='executor'; saveState(); renderRoute(); showView('routeView');
+    if(!['cpg-inkasacja-v1','cpg-inkasacja-v2','cpg-inkasacja-v3','cpg-inkasacja-v4','cpg-inkasacja-v5','cpg-inkasacja-v6'].includes(data.schema)||!Array.isArray(data.route)) throw new Error('Nieprawidłowy format pliku CPG Inkasacja.');
+    state.plan=(data.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r})); state.route=data.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r})); state.start=data.start||state.start; state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null}; state.history=data.history||[]; state.convoy={...state.convoy,...(data.convoy||{})}; state.sourceMeta=data.sourceMeta||null; state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null}; if(!state.sealSequence.nextSuggested)rebuildSealSequence(); state.mode='executor'; saveState(); renderRoute(); showView('routeView');
   }catch(e){alert('Nie udało się wznowić trasy: '+e.message)}
 }
 $('exportSessionBtn')?.addEventListener('click',exportSession);
@@ -973,7 +994,7 @@ $('sessionInput')?.addEventListener('change',e=>{const f=e.target.files?.[0]; if
 function formatDateTime(v){if(!v)return '—';try{return new Date(v).toLocaleString('pl-PL',{dateStyle:'short',timeStyle:'short'})}catch{return '—'}}
 function elapsedLabel(start,end){if(!start)return '—';const a=new Date(start).getTime(),b=end?new Date(end).getTime():Date.now();const m=Math.max(0,Math.round((b-a)/60000));const h=Math.floor(m/60),mm=m%60;return h?`${h} h ${mm} min`:`${mm} min`}
 function toast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200)}
-function undoDevice(){const idx=state.currentIndex;for(let i=state.history.length-1;i>=0;i--){const h=state.history[i];if(h.index===idx){state.route[idx]=h.snapshot;state.history.splice(i,1);saveState();renderRoute();openDevice(idx);toast('Cofnięto ostatnią zmianę urządzenia.');return}}toast('Brak wcześniejszej zmiany do cofnięcia.')}
+function undoDevice(){const idx=state.currentIndex;for(let i=state.history.length-1;i>=0;i--){const h=state.history[i];if(h.index===idx){state.route[idx]=h.snapshot;state.history.splice(i,1);rebuildSealSequence();saveState();renderRoute();openDevice(idx);toast('Cofnięto ostatnią zmianę urządzenia.');return}}toast('Brak wcześniejszej zmiany do cofnięcia.')}
 $('undoDeviceBtn')?.addEventListener('click',undoDevice);
 document.querySelectorAll('.filter-chip').forEach(b=>b.addEventListener('click',()=>{state.filter=b.dataset.filter;document.querySelectorAll('.filter-chip').forEach(x=>x.classList.toggle('active',x===b));renderRoute()}));
 $('deviceSearch')?.addEventListener('input',e=>{state.search=e.target.value;renderRoute()});
