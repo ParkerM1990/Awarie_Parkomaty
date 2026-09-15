@@ -22,3 +22,8 @@ Konwojent wpisuje numer plomby ręcznie przy pierwszym zainkasowanym urządzeniu
 ## Poprawka automatycznej numeracji plomb — 2026-09-15
 
 Po zapisaniu pierwszego obsłużonego parkomatu aplikacja zapamiętuje faktycznie użyty numer plomby i przy następnym urządzeniu automatycznie wpisuje numer zwiększony o 1. Sekwencja jest zapisywana lokalnie oraz w danych synchronizowanych do Google, więc działa także po ponownym otwarciu trasy. Konwojent może ręcznie zmienić proponowany numer; od zmienionej wartości liczona jest kolejna plomba. Pominięcie urządzenia nie zużywa numeru plomby.
+
+
+## Warstwa wizualna CPG
+
+Interfejs został dostosowany do Brandbooka City Parking Group 2025: oryginalne logo CPG, kolory Bonnie blue `#009FE3`, French blue `#1E75BA`, Pirate black `#333333`, Gunmetal `#5C5C5C`, Bright smoke `#E6EBEE` i biel. Typografia odwołuje się do rodziny Metropolis z bezpiecznymi fallbackami systemowymi.

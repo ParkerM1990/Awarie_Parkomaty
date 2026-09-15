@@ -3,37 +3,48 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#063b73" />
-  <title>CPG Inkasacja</title>
+  <meta name="theme-color" content="#009FE3" />
+  <title>City Parking Group — Inkasacja</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preload" as="image" href="./assets/cpg-logo.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <div class="brand-wrap">
-        <div class="brand">CPG</div>
-        <div class="brand-sub">INKASACJA</div>
+      <div class="brand-wrap" aria-label="City Parking Group — Inkasacja">
+        <img class="brand-logo" src="./assets/cpg-logo.png" alt="City Parking Group" />
+        <span class="brand-divider" aria-hidden="true"></span>
+        <div class="brand-app">
+          <span class="brand-app-name">INKASACJA</span>
+          <span class="brand-app-sub">planowanie i realizacja konwojów</span>
+        </div>
       </div>
-      <button id="resetBtn" class="ghost small">Nowa trasa</button>
+      <button id="resetBtn" class="ghost small topbar-action">Nowa trasa</button>
     </header>
 
     <main>
       <section id="homeView" class="view active">
-        <div class="page-head centered home-head">
-          <span class="eyebrow">CPG INKASACJA</span>
-          <h1>Konwój gotówki</h1>
-          <p>Wybierz, co chcesz zrobić.</p>
+        <div class="home-hero">
+          <div class="home-hero-copy">
+            <span class="eyebrow">CITY PARKING GROUP • INKASACJA</span>
+            <h1>Konwój gotówki</h1>
+            <p>Jedno miejsce do przygotowania trasy, przekazania jej konwojentowi i rozliczenia realizacji.</p>
+            <div class="hero-tags" aria-hidden="true">
+              <span>Planowanie</span><span>Trasa</span><span>Realizacja</span>
+            </div>
+          </div>
+          <div class="hero-mark" aria-hidden="true">P</div>
         </div>
         <div class="role-grid">
           <button id="plannerModeBtn" class="role-card primary-role" type="button">
-            <span class="role-icon">＋</span>
+            <span class="role-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
             <strong>Przygotuj konwój</strong>
             <small>Wczytaj stan gotówki, wybierz parkomaty, wyznacz trasę i opublikuj ją dla konwojenta.</small>
           </button>
           <button id="executorModeBtn" class="role-card" type="button">
-            <span class="role-icon">▶</span>
+            <span class="role-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 17.5V6.5l14 5.5-14 5.5Z"/></svg></span>
             <strong>Realizuj konwój</strong>
             <small>Pobierz opublikowaną trasę i uzupełniaj plomby, kwoty oraz statusy podczas przejazdu.</small>
           </button>

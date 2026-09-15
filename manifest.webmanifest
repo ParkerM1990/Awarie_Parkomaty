@@ -1,9 +1,9 @@
 {
-  "name":"CPG Inkasacja",
+  "name":"City Parking Group — Inkasacja",
   "short_name":"CPG Inkasacja",
   "start_url":"./",
   "display":"standalone",
-  "background_color":"#f3f7fb",
-  "theme_color":"#073b73",
-  "description":"Mobilny prototyp planowania i raportowania inkasacji parkomatów."
+  "background_color":"#F7F9FB",
+  "theme_color":"#009FE3",
+  "description":"Aplikacja City Parking Group do planowania, realizacji i raportowania konwojów inkasacyjnych."
 }
