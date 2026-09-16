@@ -1,0 +1,9 @@
+{
+  "name":"City Parking Group — Konwojent",
+  "short_name":"CPG Konwojent",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#F7F9FB",
+  "theme_color":"#009FE3",
+  "description":"Lekka aplikacja CPG do realizacji opublikowanego konwoju."
+}
