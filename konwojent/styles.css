@@ -399,3 +399,5 @@ html[data-cpg-role="planner"] .brand-app-sub{font-size:0}
 html[data-cpg-role="planner"] .brand-app-sub::after{content:'planowanie konwojów';font-size:10px}
 html[data-cpg-role="executor"] #plannerModeBtn,html[data-cpg-role="executor"] .m365-card,html[data-cpg-role="executor"] #executorBackBtn{display:none!important}
 
+
+.cloud-sync{flex-wrap:wrap;justify-content:center}

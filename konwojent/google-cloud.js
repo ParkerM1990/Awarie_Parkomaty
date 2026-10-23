@@ -95,6 +95,14 @@
     return r;
   }
 
+  async function takeOverConvoy(date, token, deviceId) {
+    const r = await jsonp({ action: 'takeover', date, token, deviceId }, 15000);
+    if (!r?.ok || !r.claimed) throw new Error(r?.error === 'Nieznana operacja.'
+      ? 'Zaktualizuj Code.gs i opublikuj nową wersję wdrożenia Google Apps Script, aby włączyć przejmowanie konwoju.'
+      : (r?.error || 'Nie udało się przejąć konwoju.'));
+    return r;
+  }
+
   async function releaseConvoy(date, token, deviceId) {
     try {
       const r = await jsonp({ action: 'release', date, token, deviceId }, 8000);
@@ -179,7 +187,7 @@
 
   window.CPG_GOOGLE = {
     isConfigured, createToken, health, publishConvoy, getConvoy, saveConvoy, getMeta,
-    claimConvoy, releaseConvoy, releaseConvoyOnClose, plannerLogin, listConvoys
+    claimConvoy, takeOverConvoy, releaseConvoy, releaseConvoyOnClose, plannerLogin, listConvoys
   };
   window.dispatchEvent(new Event('cpg-google-ready'));
 })();

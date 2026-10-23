@@ -214,7 +214,7 @@
           <div><span class="eyebrow">GOTOWY DO STARTU</span><strong id="executorPlanDate">—</strong><small id="executorPlanStatus">Plan pobrany.</small></div>
           <button id="startConvoyBtn" class="primary">Rozpocznij konwój</button>
         </div>
-        <div id="cloudSyncBar" class="cloud-sync hidden"><span id="cloudSyncDot" class="sync-dot" aria-hidden="true"></span><span id="cloudSyncStatus">Zapis w chmurze aktywny</span><button id="reloadCloudBtn" class="text-button compact hidden" type="button">Wczytaj najnowsze</button></div>
+        <div id="cloudSyncBar" class="cloud-sync hidden"><span id="cloudSyncDot" class="sync-dot" aria-hidden="true"></span><span id="cloudSyncStatus">Zapis w chmurze aktywny</span><button id="reloadCloudBtn" class="text-button compact hidden" type="button">Wczytaj najnowsze</button><button id="takeoverCloudBtn" class="secondary compact hidden" type="button" title="Przenosi edycję na ten komputer. Poprzednia sesja utraci dostęp do zapisu.">Przejmij na tym urządzeniu</button></div>
 
         <div id="routeReportBar" class="card workflow-banner route-report-banner hidden">
           <div>
@@ -284,7 +284,7 @@
 
         <div class="list-head">
           <div id="routeSummary" class="muted"></div>
-          <input id="deviceSearch" placeholder="Szukaj parkomatu" />
+          <input id="deviceSearch" type="search" name="convoy-device-query" placeholder="Szukaj numeru lub adresu parkomatu" aria-label="Szukaj numeru lub adresu parkomatu" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" /><button id="clearDeviceFiltersBtn" type="button" class="secondary compact hidden">Wyczyść filtry</button>
         </div>
         <div class="filter-row compact-filters">
           <button class="filter-chip active" data-filter="all">Wszystkie</button>

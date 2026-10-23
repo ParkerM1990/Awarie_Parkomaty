@@ -565,7 +565,19 @@ function saveState(){persistLocalState(); if(!state.suppressCloudSync)scheduleCl
 function clearState(){localStorage.removeItem(STATE_KEY)}
 function restoreState(){try{const raw=localStorage.getItem(STATE_KEY)||localStorage.getItem(LEGACY_STATE_KEY);const x=raw?JSON.parse(raw):null;if(x?.route?.length){state.plan=(x.plan||[]).map(r=>({address:r.address||r.location||'Brak adresu',...r}));state.route=x.route.map(r=>({collectedCash:null,qrRaw:'',qrScannedAt:null,address:r.address||r.location||'Brak adresu',...r}));state.start=x.start||state.start;state.routeMeta=x.routeMeta||{startedAt:null,finishedAt:null};state.history=x.history||[];state.mode=x.mode||null;state.convoy={...state.convoy,...(x.convoy||{})};state.sourceMeta=x.sourceMeta||null;state.reportSnapshot=x.reportSnapshot||null;state.sealSequence={...state.sealSequence,...(x.sealSequence||{})};}}catch{}}
 
-function renderRoute(){syncWorkflowUi();
+function syncRouteFiltersUi(){
+ const input=$('deviceSearch');if(input&&input.value!==(state.search||''))input.value=state.search||'';
+ document.querySelectorAll('.filter-chip').forEach(b=>b.classList.toggle('active',b.dataset.filter===state.filter));
+ $('clearDeviceFiltersBtn')?.classList.toggle('hidden',!state.search&&state.filter==='all');
+}
+function clearDeviceFilters(){state.search='';state.filter='all';renderRoute()}
+function handleDeviceSearchInput(event){
+ const input=event.currentTarget||event.target;
+ // Autofill przeglądarki lub menedżera haseł nie jest wyszukiwaniem parkomatu.
+ if(document.activeElement!==input){input.value=state.search||'';return}
+ state.search=input.value;renderRoute();
+}
+function renderRoute(){syncWorkflowUi();syncRouteFiltersUi();
  const done=state.route.filter(x=>x.status==='done').length, skipped=state.route.filter(x=>x.status==='skip').length;
  const plannerView=state.mode==='planner';
  $('statSelected').textContent=state.route.length;
@@ -579,12 +591,13 @@ function renderRoute(){syncWorkflowUi();
  if($('routeElapsed'))$('routeElapsed').textContent=elapsedLabel(state.routeMeta.startedAt,state.routeMeta.finishedAt);
  if($('routeProgress'))$('routeProgress').textContent=`${progress}%`;
  const nextIndex=state.route.findIndex(x=>x.status==='pending');
- const q=(state.search||'').toLowerCase();
- const visible=state.route.map((x,i)=>({x,i})).filter(({x})=>(state.filter==='all'||x.status===state.filter)&&(!q||x.id.toLowerCase().includes(q)||x.location.toLowerCase().includes(q)||(x.address||'').toLowerCase().includes(q)));
- $('deviceList').innerHTML=visible.map(({x,i})=>{const amount=plannerView?money(x.cash):(x.status==='done'&&x.collectedCash!==null?`<div class="collected-value">wybrano: ${money2(x.collectedCash)}</div>`:'');return `<div class="device-row ${i===nextIndex?'next-pending':''}" data-i="${i}"><div class="order">${i+1}</div><div><strong>${escapeHtml(x.id)}</strong><div class="sub">${escapeHtml(x.location)}${x.address&&x.address!==x.location?` • ${escapeHtml(x.address)}`:''}</div><span class="badge ${x.status==='done'?'done':x.status==='skip'?'skip':'pending'}">${x.status==='done'?'Zainkasowano':x.status==='skip'?'Nie zainkasowano':i===nextIndex?'Następny':'Do wykonania'}</span></div><div class="amount">${amount}</div></div>`}).join('')||'<div class="card muted">Brak urządzeń spełniających filtr.</div>';
+ const q=(state.search||'').trim().toLowerCase();
+ const visible=state.route.map((x,i)=>({x,i})).filter(({x})=>(state.filter==='all'||x.status===state.filter)&&(!q||String(x.id??'').toLowerCase().includes(q)||String(x.location??'').toLowerCase().includes(q)||String(x.address??'').toLowerCase().includes(q)));
+ $('deviceList').innerHTML=visible.map(({x,i})=>{const amount=plannerView?money(x.cash):(x.status==='done'&&x.collectedCash!==null?`<div class="collected-value">wybrano: ${money2(x.collectedCash)}</div>`:'');return `<div class="device-row ${i===nextIndex?'next-pending':''}" data-i="${i}"><div class="order">${i+1}</div><div><strong>${escapeHtml(x.id)}</strong><div class="sub">${escapeHtml(x.location)}${x.address&&x.address!==x.location?` • ${escapeHtml(x.address)}`:''}</div><span class="badge ${x.status==='done'?'done':x.status==='skip'?'skip':'pending'}">${x.status==='done'?'Zainkasowano':x.status==='skip'?'Nie zainkasowano':i===nextIndex?'Następny':'Do wykonania'}</span></div><div class="amount">${amount}</div></div>`}).join('')||(state.route.length?`<div class="card muted">Brak wyników${q?` dla wyszukiwania „${escapeHtml(state.search.trim())}”`:''} w wybranym filtrze. Konwój zawiera ${state.route.length} parkomatów.<br><button type="button" class="text-button" data-clear-device-filters>Wyczyść filtry i pokaż wszystkie</button></div>`:'<div class="card muted">Konwój nie zawiera parkomatów.</div>');
+ $('deviceList').querySelector('[data-clear-device-filters]')?.addEventListener('click',clearDeviceFilters);
  document.querySelectorAll('.device-row').forEach(el=>el.addEventListener('click',()=>openDevice(Number(el.dataset.i))));
  renderNextStop();
- saveState();
+ persistLocalState();
 }
 
 
@@ -623,7 +636,7 @@ async function reoptimizePendingFrom(position){
   if(!pending.length)return 'none';
   const optimized=await optimizeByRoadTime(pending,position);
   state.route=[...completed,...optimized.route];
-  state.currentPosition=position; state.routeMeta.optimizationMode=optimized.mode; renderRoute(); if(shouldShowPlannerMapPreview())renderMap();
+  state.currentPosition=position; state.routeMeta.optimizationMode=optimized.mode; saveState();renderRoute(); if(shouldShowPlannerMapPreview())renderMap();
   return optimized.mode;
 }
 async function reoptimizeFromGps(){
@@ -784,7 +797,7 @@ function saveCurrentDevice(){
  x.status=choice; x.seal=choice==='done'?$('sealNumber').value.trim():''; x.collectedCash=choice==='done'?collected:null; if(choice!=='done'){x.qrRaw='';x.qrScannedAt=null} x.reason=choice==='skip'?$('skipReason').value:''; x.notes=$('notes').value.trim(); x.updatedAt=new Date().toISOString();
  state.lastExcelBlob=null;
  if(choice==='done')rememberUsedSeal(x.seal,state.currentIndex);
- renderRoute(); return true;
+ saveState();renderRoute(); return true;
 }
 $('saveDeviceBtn').onclick=()=>{if(saveCurrentDevice())showView('routeView')};
 $('saveAndNavigateBtn')?.addEventListener('click',()=>{
@@ -1213,6 +1226,7 @@ async function loadConvoyPayload(data,cloudItem=null){
   const provider=cloudItem?.provider||data.convoy?.cloudProvider||null;
   const token=cloudItem?.token||data.convoy?.shareToken||null;
   const revision=Number(cloudItem?.revision||data.convoy?.revision||1)||1;
+  if(state.convoy.date!==data.convoy?.date||state.convoy.shareToken!==token){state.search='';state.filter='all'}
   state.mode='executor';state.lastExcelBlob=null;state.plan=(data.plan||data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.route=(data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.start=data.start||state.start;state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null};state.history=data.history||[];state.convoy={...state.convoy,...(data.convoy||{}),revision,lastWriterDeviceId:cloudItem?.lastWriterDeviceId||data.convoy?.lastWriterDeviceId||null,cloudProvider:provider,shareToken:token,cloudItemId:provider==='google'?`google:${data.convoy?.date||''}:${token||''}`:(cloudItem?.id||data.convoy?.cloudItemId||null),cloudETag:cloudItem?.eTag||data.convoy?.cloudETag||null};state.sourceMeta=null;state.reportSnapshot=data.reportSnapshot||null;state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null};state.syncPaused=provider==='google'&&!!window.CPG_GOOGLE?.isConfigured?.()&&!isCompletedConvoy();state.leaseBlocked=state.syncPaused;if(!state.sealSequence.nextSuggested)rebuildSealSequence();if(state.routeMeta?.finishedAt)state.convoy.status='completed';if(isCompletedConvoy()&&!state.reportSnapshot)state.reportSnapshot=buildReportSnapshot();persistLocalState();renderRoute();
   if(isCompletedConvoy()){await releaseExecutorLease();renderCompletedReportView({reopened:true});showView('reportView');setCloudSyncStatus('Konwój zakończony — dane są zapisane w Google.','ok')}
   else{showView('routeView');await claimExecutorLease();if(!state.leaseBlocked)setCloudSyncStatus('Połączono z Google — zapis automatyczny aktywny.','ok')}
@@ -1252,6 +1266,7 @@ function setCloudSyncStatus(msg,kind='neutral',showReload=false){
  if($('cloudSyncStatus'))$('cloudSyncStatus').textContent=msg;
  const bar=$('cloudSyncBar');if(bar){bar.classList.remove('sync-ok','sync-saving','sync-warning','sync-error','sync-offline');if(kind&&kind!=='neutral')bar.classList.add(`sync-${kind}`)}
  $('reloadCloudBtn')?.classList.toggle('hidden',!showReload);
+ $('takeoverCloudBtn')?.classList.toggle('hidden',!state.leaseBlocked||state.mode!=='executor'||isCompletedConvoy());
 }
 function scheduleCloudSave(){
  if(state.suppressCloudSync||state.mode!=='executor')return;
@@ -1299,6 +1314,37 @@ async function performCloudSave(options={}){
    if(options.throwOnError)throw e;return false
  }
 }
+let cloudTakeoverInFlight=false;
+async function takeOverCloudConvoy(){
+ if(cloudTakeoverInFlight||cloudReloadInFlight||!state.leaseBlocked)return;
+ if(!navigator.onLine){setCloudSyncStatus('Przejęcie wymaga połączenia z Internetem.','offline',true);return}
+ const date=state.convoy.date,token=state.convoy.shareToken;
+ if(!date||!token||!window.CPG_GOOGLE?.isConfigured?.())return;
+ cloudTakeoverInFlight=true;cloudReloadInFlight=true;state.syncPaused=true;
+ cancelExecutorLeaseRetry();clearTimeout(state.cloudSyncTimer);state.cloudSyncTimer=null;
+ const btn=$('takeoverCloudBtn'),reload=$('reloadCloudBtn');
+ if(btn){btn.disabled=true;btn.textContent='Przejmowanie…'}
+ if(reload)reload.disabled=true;
+ setCloudSyncStatus('Przenoszę dostęp do edycji na to urządzenie…','saving',true);
+ try{
+   if(cloudSaveInFlight){try{await cloudSaveInFlight}catch{}}
+   if(typeof window.CPG_GOOGLE.takeOverConvoy!=='function')throw new Error('Zaktualizuj plik google-cloud.js.');
+   await window.CPG_GOOGLE.takeOverConvoy(date,token,EXECUTOR_CLIENT_ID);
+   if(state.convoy.date!==date||state.convoy.shareToken!==token)throw new Error('Zmieniono konwój. Otwórz go ponownie.');
+   cloudReloadInFlight=false;
+   // Prawo do edycji odblokuje dopiero wczytanie aktualnej wersji i potwierdzenie rezerwacji.
+   await reloadLatestCloudVersion();
+ }catch(e){
+   state.syncPaused=true;state.leaseBlocked=true;
+   setCloudSyncStatus(`Nie udało się przejąć konwoju: ${e.message}`,'error',true);
+ }finally{
+   cloudTakeoverInFlight=false;cloudReloadInFlight=false;
+   if(btn){btn.disabled=false;btn.textContent='Przejmij na tym urządzeniu'}
+   if(reload)reload.disabled=false;
+   if(state.leaseBlocked&&leaseRetryTimer===null)scheduleExecutorLeaseRetry();
+ }
+}
+$('takeoverCloudBtn')?.addEventListener('click',takeOverCloudConvoy);
 async function reloadLatestCloudVersion(){
  if(cloudReloadInFlight)return;
  if(!state.convoy.date||!state.convoy.shareToken||!window.CPG_GOOGLE?.isConfigured?.()){
@@ -1422,8 +1468,9 @@ function elapsedLabel(start,end){if(!start)return '—';const a=new Date(start).
 function toast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200)}
 function undoDevice(){const idx=state.currentIndex;for(let i=state.history.length-1;i>=0;i--){const h=state.history[i];if(h.index===idx){state.route[idx]=h.snapshot;state.history.splice(i,1);rebuildSealSequence();saveState();renderRoute();openDevice(idx);toast('Cofnięto ostatnią zmianę urządzenia.');return}}toast('Brak wcześniejszej zmiany do cofnięcia.')}
 $('undoDeviceBtn')?.addEventListener('click',undoDevice);
-document.querySelectorAll('.filter-chip').forEach(b=>b.addEventListener('click',()=>{state.filter=b.dataset.filter;document.querySelectorAll('.filter-chip').forEach(x=>x.classList.toggle('active',x===b));renderRoute()}));
-$('deviceSearch')?.addEventListener('input',e=>{state.search=e.target.value;renderRoute()});
+document.querySelectorAll('.filter-chip').forEach(b=>b.addEventListener('click',()=>{state.filter=b.dataset.filter;renderRoute()}));
+$('deviceSearch')?.addEventListener('input',handleDeviceSearchInput);
+$('clearDeviceFiltersBtn')?.addEventListener('click',clearDeviceFilters);
 
 // --- QR scanner: kwota faktycznie wybranej gotowki ---
 let qrScanner=null;
