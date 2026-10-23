@@ -130,3 +130,4 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
 })();
+

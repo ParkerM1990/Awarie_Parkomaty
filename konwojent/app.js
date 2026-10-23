@@ -1151,20 +1151,38 @@ async function refreshPlannerHistory(){
 }
 $('refreshPlannerHistoryBtn')?.addEventListener('click',refreshPlannerHistory);
 
+let leaseRetryTimer=null;
+function cancelExecutorLeaseRetry(){
+ if(leaseRetryTimer!==null){clearTimeout(leaseRetryTimer);leaseRetryTimer=null}
+}
+function scheduleExecutorLeaseRetry(lease={}){
+ cancelExecutorLeaseRetry();
+ if(state.mode!=='executor'||isCompletedConvoy()||state.convoy.cloudProvider!=='google')return;
+ const date=state.convoy.date,token=state.convoy.shareToken;
+ const untilExpiry=Number(lease.expiresAt||0)-Date.now()+1000;
+ const delay=untilExpiry>0?Math.min(15000,Math.max(1000,untilExpiry)):15000;
+ leaseRetryTimer=setTimeout(async()=>{
+   leaseRetryTimer=null;
+   if(state.mode!=='executor'||!state.leaseBlocked||isCompletedConvoy()||state.convoy.date!==date||state.convoy.shareToken!==token)return;
+   if(!navigator.onLine||cloudReloadInFlight){scheduleExecutorLeaseRetry();return}
+   await reloadLatestCloudVersion();
+ },delay);
+}
 async function claimExecutorLease(){
  if(state.mode!=='executor'||isCompletedConvoy()||state.convoy.cloudProvider!=='google'||!state.convoy.shareToken||!window.CPG_GOOGLE?.isConfigured?.())return true;
  try{
    const lease=await window.CPG_GOOGLE.claimConvoy(state.convoy.date,state.convoy.shareToken,EXECUTOR_CLIENT_ID);
    if(!lease?.claimed){
      state.leaseBlocked=true;state.syncPaused=true;
-     setCloudSyncStatus(`Konwój jest otwarty na innym urządzeniu${lease?.ownerHint?` (${lease.ownerHint})`:''}.`,'warning',true);
+     setCloudSyncStatus(`Konwój jest zarezerwowany przez inną sesję${lease?.ownerHint?` (${lease.ownerHint})`:''}. Automatycznie sprawdzam zwolnienie dostępu.`,'warning',true);
+     scheduleExecutorLeaseRetry(lease);
      syncWorkflowUi();return false;
    }
-   state.leaseBlocked=false;state.syncPaused=false;startLeaseRenewal();syncWorkflowUi();return true;
+   cancelExecutorLeaseRetry();state.leaseBlocked=false;state.syncPaused=false;startLeaseRenewal();syncWorkflowUi();return true;
  }catch(e){
    console.error(e);
    if(!navigator.onLine&&state.route?.length){state.leaseBlocked=false;state.syncPaused=false;setCloudSyncStatus('Brak Internetu — pracujesz na danych zapisanych na tym urządzeniu. Zmiany zsynchronizują się po powrocie sieci.','offline');syncWorkflowUi();return true}
-   state.leaseBlocked=true;state.syncPaused=true;setCloudSyncStatus('Nie udało się potwierdzić wyłącznego dostępu do konwoju.','warning',true);syncWorkflowUi();return false;
+   state.leaseBlocked=true;state.syncPaused=true;setCloudSyncStatus('Nie udało się potwierdzić wyłącznego dostępu do konwoju. Ponowię próbę automatycznie.','warning',true);scheduleExecutorLeaseRetry();syncWorkflowUi();return false;
  }
 }
 function startLeaseRenewal(){
@@ -1172,11 +1190,12 @@ function startLeaseRenewal(){
  if(state.mode!=='executor'||isCompletedConvoy())return;
  state.leaseTimer=setInterval(async()=>{
    if(!navigator.onLine||state.mode!=='executor'||isCompletedConvoy())return;
-   try{const lease=await window.CPG_GOOGLE.claimConvoy(state.convoy.date,state.convoy.shareToken,EXECUTOR_CLIENT_ID);if(!lease?.claimed){state.leaseBlocked=true;state.syncPaused=true;setCloudSyncStatus('Konwój przejęło inne urządzenie. Wczytaj najnowszą wersję.','warning',true);syncWorkflowUi()}}
+   try{const lease=await window.CPG_GOOGLE.claimConvoy(state.convoy.date,state.convoy.shareToken,EXECUTOR_CLIENT_ID);if(!lease?.claimed){clearInterval(state.leaseTimer);state.leaseTimer=null;state.leaseBlocked=true;state.syncPaused=true;setCloudSyncStatus('Inna sesja ma dostęp do edycji. Automatycznie sprawdzam zwolnienie dostępu.','warning',true);scheduleExecutorLeaseRetry(lease);syncWorkflowUi()}}
    catch(e){console.error(e)}
  },60000);
 }
 async function releaseExecutorLease(){
+ cancelExecutorLeaseRetry();
  if(state.leaseTimer){clearInterval(state.leaseTimer);state.leaseTimer=null}
  if(state.convoy.cloudProvider==='google'&&state.convoy.date&&state.convoy.shareToken&&window.CPG_GOOGLE?.isConfigured?.()){
    try{await window.CPG_GOOGLE.releaseConvoy(state.convoy.date,state.convoy.shareToken,EXECUTOR_CLIENT_ID)}catch{}
@@ -1194,7 +1213,7 @@ async function loadConvoyPayload(data,cloudItem=null){
   const provider=cloudItem?.provider||data.convoy?.cloudProvider||null;
   const token=cloudItem?.token||data.convoy?.shareToken||null;
   const revision=Number(cloudItem?.revision||data.convoy?.revision||1)||1;
-  state.mode='executor';state.lastExcelBlob=null;state.plan=(data.plan||data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.route=(data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.start=data.start||state.start;state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null};state.history=data.history||[];state.convoy={...state.convoy,...(data.convoy||{}),revision,lastWriterDeviceId:cloudItem?.lastWriterDeviceId||data.convoy?.lastWriterDeviceId||null,cloudProvider:provider,shareToken:token,cloudItemId:provider==='google'?`google:${data.convoy?.date||''}:${token||''}`:(cloudItem?.id||data.convoy?.cloudItemId||null),cloudETag:cloudItem?.eTag||data.convoy?.cloudETag||null};state.sourceMeta=null;state.reportSnapshot=data.reportSnapshot||null;state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null};state.syncPaused=false;state.leaseBlocked=false;if(!state.sealSequence.nextSuggested)rebuildSealSequence();if(state.routeMeta?.finishedAt)state.convoy.status='completed';if(isCompletedConvoy()&&!state.reportSnapshot)state.reportSnapshot=buildReportSnapshot();persistLocalState();renderRoute();
+  state.mode='executor';state.lastExcelBlob=null;state.plan=(data.plan||data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.route=(data.route||[]).map(r=>({...r,address:r.address||r.location||'Brak adresu'}));state.start=data.start||state.start;state.routeMeta=data.routeMeta||{startedAt:null,finishedAt:null};state.history=data.history||[];state.convoy={...state.convoy,...(data.convoy||{}),revision,lastWriterDeviceId:cloudItem?.lastWriterDeviceId||data.convoy?.lastWriterDeviceId||null,cloudProvider:provider,shareToken:token,cloudItemId:provider==='google'?`google:${data.convoy?.date||''}:${token||''}`:(cloudItem?.id||data.convoy?.cloudItemId||null),cloudETag:cloudItem?.eTag||data.convoy?.cloudETag||null};state.sourceMeta=null;state.reportSnapshot=data.reportSnapshot||null;state.sealSequence=data.sealSequence?{lastUsed:null,nextSuggested:null,lastIndex:null,...data.sealSequence}:{lastUsed:null,nextSuggested:null,lastIndex:null};state.syncPaused=provider==='google'&&!!window.CPG_GOOGLE?.isConfigured?.()&&!isCompletedConvoy();state.leaseBlocked=state.syncPaused;if(!state.sealSequence.nextSuggested)rebuildSealSequence();if(state.routeMeta?.finishedAt)state.convoy.status='completed';if(isCompletedConvoy()&&!state.reportSnapshot)state.reportSnapshot=buildReportSnapshot();persistLocalState();renderRoute();
   if(isCompletedConvoy()){await releaseExecutorLease();renderCompletedReportView({reopened:true});showView('reportView');setCloudSyncStatus('Konwój zakończony — dane są zapisane w Google.','ok')}
   else{showView('routeView');await claimExecutorLease();if(!state.leaseBlocked)setCloudSyncStatus('Połączono z Google — zapis automatyczny aktywny.','ok')}
  }finally{state.suppressCloudSync=false}
@@ -1246,7 +1265,15 @@ function scheduleCloudSave(){
  if(!navigator.onLine){setCloudSyncStatus('Brak Internetu — zmiana zapisana na telefonie i czeka na synchronizację.','offline');return}
  setCloudSyncStatus('Zmiana czeka na zapis w Google…','saving');state.cloudSyncTimer=setTimeout(()=>flushCloudSave(),700);
 }
+let cloudSaveInFlight=null;
+let cloudReloadInFlight=false;
 async function flushCloudSave(options={}){
+ if(cloudReloadInFlight)return false;
+ if(cloudSaveInFlight)return cloudSaveInFlight;
+ cloudSaveInFlight=performCloudSave(options);
+ try{return await cloudSaveInFlight}finally{cloudSaveInFlight=null}
+}
+async function performCloudSave(options={}){
  if(state.suppressCloudSync||state.mode!=='executor')return true;
  if(isCompletedConvoy()&&!hasPendingCloud())return true;
  const google=state.convoy.cloudProvider==='google'&&state.convoy.shareToken&&window.CPG_GOOGLE?.isConfigured?.();
@@ -1267,16 +1294,66 @@ async function flushCloudSave(options={}){
    return true;
  }catch(e){
    console.error(e);
-   if(e?.code==='CONFLICT'||e?.code==='LEASE_CONFLICT'){state.syncPaused=true;state.leaseBlocked=true;setCloudSyncStatus('Wykryto nowsze dane lub aktywne inne urządzenie. Wczytaj najnowszą wersję.','warning',true);syncWorkflowUi()}
+   if(e?.code==='CONFLICT'||e?.code==='LEASE_CONFLICT'){state.syncPaused=true;state.leaseBlocked=true;setCloudSyncStatus('Wykryto nowsze dane lub aktywną inną sesję. Automatycznie sprawdzam dostęp.','warning',true);scheduleExecutorLeaseRetry();syncWorkflowUi()}
    else setCloudSyncStatus('Nie udało się zapisać — dane są bezpiecznie zapisane na tym telefonie i czekają na Internet.','error');
    if(options.throwOnError)throw e;return false
  }
 }
 async function reloadLatestCloudVersion(){
- if(!state.convoy.date||!state.convoy.shareToken||!window.CPG_GOOGLE?.isConfigured?.())return;
- try{setCloudSyncStatus('Pobieram najnowszą wersję z Google…','saving');const result=await window.CPG_GOOGLE.getConvoy(state.convoy.date,state.convoy.shareToken);await loadConvoyPayload(result.data,{provider:'google',token:state.convoy.shareToken,revision:result.meta?.revision,lastWriterDeviceId:result.meta?.lastWriterDeviceId});toast('Wczytano najnowszą wersję konwoju.')}catch(e){alert(e.message)}
+ if(cloudReloadInFlight)return;
+ if(!state.convoy.date||!state.convoy.shareToken||!window.CPG_GOOGLE?.isConfigured?.()){
+   setCloudSyncStatus('Nie można pobrać danych: brakuje daty, kodu konwoju lub konfiguracji Google.','error',true);return;
+ }
+ const date=state.convoy.date,token=state.convoy.shareToken;
+ const btn=$('reloadCloudBtn');
+ const previousPaused=state.syncPaused,previousBlocked=state.leaseBlocked;
+ cloudReloadInFlight=true;state.syncPaused=true;
+ clearTimeout(state.cloudSyncTimer);state.cloudSyncTimer=null;
+ if(btn){btn.disabled=true;btn.textContent='Pobieranie…'}
+ setCloudSyncStatus('Pobieram najnowszą wersję z Google…','saving',true);
+ try{
+   // Zakończ rozpoczęty zapis, zanim odczytamy jego wynik z chmury.
+   if(cloudSaveInFlight){try{await cloudSaveInFlight}catch{}}
+   const result=await window.CPG_GOOGLE.getConvoy(date,token);
+   if(!result?.data||!Array.isArray(result.data.route))throw new Error('Google nie zwrócił prawidłowej trasy.');
+   if(state.convoy.date!==date||state.convoy.shareToken!==token)throw new Error('Zmieniono konwój podczas pobierania. Wczytaj dane ponownie.');
+   // Zachowaj kopię niewysłanych zmian przed zastąpieniem ich wersją z Google.
+   const pendingKey=pendingSyncKey();
+   const pending=pendingKey&&localStorage.getItem(pendingKey);
+   if(pending)localStorage.setItem(`${pendingKey}:before-reload:${Date.now()}`,pending);
+   await loadConvoyPayload(result.data,{provider:'google',token,revision:result.meta?.revision,lastWriterDeviceId:result.meta?.lastWriterDeviceId});
+   if(pendingKey)localStorage.removeItem(pendingKey);
+   if(state.leaseBlocked){
+     setCloudSyncStatus('Wczytano najnowsze dane z Google. Tryb tylko do odczytu — oczekuję na zwolnienie rezerwacji. Ponowię próbę automatycznie.','warning',true);
+     toast('Dane odświeżone. Konwój jest dostępny do podglądu.');
+   }else{
+     setCloudSyncStatus(isCompletedConvoy()?'Wczytano najnowsze dane. Konwój zakończony — raport jest dostępny.':'Wczytano najnowsze dane z Google. Możesz kontynuować pracę.','ok');
+     toast('Wczytano najnowszą wersję konwoju.');
+   }
+ }catch(e){
+   state.syncPaused=previousPaused;state.leaseBlocked=previousBlocked;
+   setCloudSyncStatus(`Nie udało się pobrać najnowszych danych: ${e.message}`,'error',true);
+   syncWorkflowUi();
+ }finally{
+   cloudReloadInFlight=false;
+   if(state.leaseBlocked&&leaseRetryTimer===null)scheduleExecutorLeaseRetry();
+   if(btn){btn.disabled=false;btn.textContent='Wczytaj najnowsze'}
+ }
 }
 $('reloadCloudBtn')?.addEventListener('click',reloadLatestCloudVersion);
+
+function releaseConvoyOnPageHide(){
+ cancelExecutorLeaseRetry();
+ if(state.leaseTimer){clearInterval(state.leaseTimer);state.leaseTimer=null}
+ if(state.mode!=='executor'||state.leaseBlocked||isCompletedConvoy()||state.convoy.cloudProvider!=='google')return;
+ // Rozpoczęty zapis musi zachować rezerwację aż do zakończenia.
+ if(!cloudSaveInFlight)window.CPG_GOOGLE?.releaseConvoyOnClose?.(state.convoy.date,state.convoy.shareToken,EXECUTOR_CLIENT_ID);
+ state.syncPaused=true;state.leaseBlocked=true;
+}
+window.addEventListener('pagehide',releaseConvoyOnPageHide);
+window.addEventListener('pageshow',event=>{
+ if(event.persisted&&state.mode==='executor'&&state.convoy.cloudProvider==='google')reloadLatestCloudVersion();
+});
 
 async function refreshM365Ui(){
  const configured=window.CPG_M365?.isConfigured?.();const label=$('m365UserLabel'),status=$('m365Status'),btn=$('m365ConnectBtn');if(!configured){if(label)label.textContent='Wymaga konfiguracji';if(status)status.textContent='Uzupełnij clientId, tenantId i wspólny driveId w ms365-config.js.';if(btn)btn.textContent='Instrukcja';return}try{const account=await window.CPG_M365.getAccount();if(account){if(label)label.textContent=account.name||account.username;if(status)status.textContent='Połączono. Możesz pobierać najnowszy Terminal Balance z OneDrive/SharePoint.';if(btn)btn.textContent='Połączono'}else{if(label)label.textContent='Microsoft 365';if(status)status.textContent='Zaloguj się kontem firmowym.';if(btn)btn.textContent='Połącz'}}catch(e){if(status)status.textContent=e.message}}
@@ -1381,3 +1458,4 @@ async function stopQrScanner(){try{if(qrScanner){await qrScanner.stop();await qr
 async function onQrScan(decodedText){const parsed=parseQrPayload(decodedText); if(!parsed){$('qrScannerStatus').textContent='Kod odczytany, ale nie znaleziono prawidłowej kwoty.';return} const x=state.route[state.currentIndex]; if(parsed.id&&x&&String(parsed.id).trim().toLowerCase()!==String(x.id).trim().toLowerCase()){if(!confirm(`Kod wskazuje urządzenie ${parsed.id}, a otwarte jest ${x.id}. Użyć tej kwoty mimo to?`))return} $('collectedCash').value=String(parsed.amount.toFixed(2)).replace('.',','); x.qrRaw=parsed.raw; x.qrScannedAt=new Date().toISOString(); updateQrStatus(x); await stopQrScanner(); toast(`Zeskanowano kwotę ${money2(parsed.amount)}.`)}
 $('scanQrBtn')?.addEventListener('click',startQrScanner); $('closeQrBtn')?.addEventListener('click',stopQrScanner); $('collectedCash')?.addEventListener('input',()=>{const x=state.route[state.currentIndex]; if(x){x.qrRaw='';x.qrScannedAt=null} updateQrStatus(x)});
 setInterval(()=>{if($('routeView')?.classList.contains('active')&&state.routeMeta.startedAt&&!state.routeMeta.finishedAt){if($('routeElapsed'))$('routeElapsed').textContent=elapsedLabel(state.routeMeta.startedAt,null)}},30000);
+

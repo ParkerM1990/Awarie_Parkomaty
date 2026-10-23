@@ -139,6 +139,21 @@
     throw new Error('Zmiana została wysłana, ale nie udało się potwierdzić zapisu.');
   }
 
+  function releaseConvoyOnClose(date, token, deviceId) {
+    if (!isConfigured() || !date || !token || !deviceId) return false;
+    const body = JSON.stringify({ action: 'release', date, token, deviceId });
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(endpoint(), new Blob([body], { type: 'text/plain;charset=UTF-8' }))) return true;
+    } catch (_) {}
+    try {
+      fetch(endpoint(), {
+        method: 'POST', mode: 'no-cors', cache: 'no-store', keepalive: true,
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body
+      }).catch(() => {});
+      return true;
+    } catch (_) { return false; }
+  }
+
   async function sha256Hex(text) {
     if (!crypto?.subtle) throw new Error('Ta przeglądarka nie obsługuje bezpiecznego logowania planisty.');
     const bytes = new TextEncoder().encode(String(text));
@@ -164,7 +179,8 @@
 
   window.CPG_GOOGLE = {
     isConfigured, createToken, health, publishConvoy, getConvoy, saveConvoy, getMeta,
-    claimConvoy, releaseConvoy, plannerLogin, listConvoys
+    claimConvoy, releaseConvoy, releaseConvoyOnClose, plannerLogin, listConvoys
   };
   window.dispatchEvent(new Event('cpg-google-ready'));
 })();
+

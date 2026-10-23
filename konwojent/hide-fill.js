@@ -38,3 +38,4 @@
   const observer = new MutationObserver(() => requestAnimationFrame(hideFillUi));
   observer.observe(document.documentElement, { childList: true, subtree: true });
 })();
+
